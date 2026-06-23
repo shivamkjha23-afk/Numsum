@@ -1,7 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
 
 export type Role = "visitor" | "member" | "organization" | "admin";
-export type ChallengeStatus = "open" | "in_review" | "active" | "completed" | "closed" | string;
+export type ChallengeStatus = "open" | "in_review" | "active" | "completed" | "closed" | "archived" | string;
 
 export interface FirestoreEntity { id: string; }
 export interface Challenge extends FirestoreEntity {
@@ -10,7 +10,10 @@ export interface Challenge extends FirestoreEntity {
   category?: string;
   status?: ChallengeStatus;
   createdAt?: Timestamp | Date | string | number | null;
+  updatedAt?: Timestamp | Date | string | number | null;
   organizationId?: string;
+  submittedBy?: string;
+  questionnaire?: Record<string, unknown>;
 }
 export interface Organization extends FirestoreEntity {
   name: string;
@@ -27,7 +30,14 @@ export interface UserProfile extends FirestoreEntity {
   status?: string;
   createdAt?: Timestamp | Date | string | number | null;
 }
-export interface PlatformStats { communityMembers: number; organizations: number; challenges: number; openChallenges: number; }
+export interface SystemStats extends FirestoreEntity {
+  memberCount?: number;
+  organizationCount?: number;
+  challengeCount?: number;
+  researchCount?: number;
+  competitionCount?: number;
+  lastUpdated?: Timestamp | Date | string | number | null;
+}
 export interface OrganizationStats { organizations: number; challenges: number; }
 export interface LabelItem { id: string; label: string; sortOrder?: number; description?: string; }
 export interface IndustrySector extends LabelItem { slug?: string; icon?: string; }

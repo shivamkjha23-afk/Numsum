@@ -23,7 +23,6 @@ NumSum uses Firebase Authentication, Firestore and Hosting. Documents include `t
 - `review_scores`: weighted scores for innovation, practicality, scalability, cost, technical quality, business potential and impact.
 - `contribution_logs`: immutable point events for participation, mentoring, reviewing, winning and helping.
 - `badges`: badge definitions, criteria and awarded counts.
-- `leaderboards`: monthly, quarterly and yearly materialized rankings.
 - `notifications`: user and organization notification feed.
 - `messages`: direct and workspace messages.
 - `admin_settings`: platform feature flags, scoring weights, questionnaire rules and moderation policies.
