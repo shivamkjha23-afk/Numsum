@@ -1,8 +1,8 @@
 import { collection, getCountFromServer, getDocs, limit, orderBy, query, where, type QueryConstraint } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Challenge, ChallengeType, CommunityStats, IndustrySector, LabelItem, PlatformStats, Questionnaire } from "@/lib/types";
+import type { Challenge, CommunityStats, IndustrySector, LabelItem, PlatformStats, Questionnaire } from "@/lib/types";
 
-function withId<T>(doc: { id: string; data: () => Omit<T, "id"> }): T { return { id: doc.id, ...doc.data() } as T; }
+function withId<T>(doc: { id: string; data: () => unknown }): T { return { id: doc.id, ...(doc.data() as Omit<T, "id">) } as T; }
 async function countCollection(name: string, constraints: QueryConstraint[] = []) { const ref = collection(db, name); const snap = await getCountFromServer(constraints.length ? query(ref, ...constraints) : ref); return snap.data().count; }
 
 export async function getChallenges(maxItems = 12): Promise<Challenge[]> {
@@ -15,9 +15,9 @@ export async function getIndustrySectors(): Promise<IndustrySector[]> {
   return snap.docs.map(doc => withId<IndustrySector>(doc));
 }
 
-export async function getChallengeTypes(): Promise<ChallengeType[]> {
+export async function getChallengeTypes(): Promise<LabelItem[]> {
   const snap = await getDocs(query(collection(db, "challenge_types"), orderBy("sortOrder", "asc")));
-  return snap.docs.map(doc => withId<ChallengeType>(doc));
+  return snap.docs.map(doc => withId<LabelItem>(doc));
 }
 
 export async function getQuestionnaireByType(challengeTypeId: string): Promise<Questionnaire | null> {
