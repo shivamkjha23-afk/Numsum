@@ -1,13 +1,26 @@
 import { collection, getCountFromServer, getDocs, limit, orderBy, query, where, type QueryConstraint } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Challenge, CommunityStats, IndustrySector, LabelItem, PlatformStats, Questionnaire } from "@/lib/types";
+import type { Challenge, CommunityStats, IndustrySector, LabelItem, Organization, OrganizationStats, PlatformStats, Questionnaire } from "@/lib/types";
 
 function withId<T>(doc: { id: string; data: () => unknown }): T { return { id: doc.id, ...(doc.data() as Omit<T, "id">) } as T; }
 async function countCollection(name: string, constraints: QueryConstraint[] = []) { const ref = collection(db, name); const snap = await getCountFromServer(constraints.length ? query(ref, ...constraints) : ref); return snap.data().count; }
 
 export async function getChallenges(maxItems = 12): Promise<Challenge[]> {
-  const snap = await getDocs(query(collection(db, "challenges"), orderBy("createdAt", "desc"), limit(maxItems)));
+  const snap = await getDocs(query(collection(db, "challenges"), limit(maxItems)));
   return snap.docs.map(doc => withId<Challenge>(doc));
+}
+
+export async function getOrganizations(maxItems = 12): Promise<Organization[]> {
+  const snap = await getDocs(query(collection(db, "organizations"), limit(maxItems)));
+  return snap.docs.map(doc => withId<Organization>(doc));
+}
+
+export async function getOrganizationStats(): Promise<OrganizationStats> {
+  const [organizations, challenges] = await Promise.all([
+    countCollection("organizations"),
+    countCollection("challenges"),
+  ]);
+  return { organizations, challenges };
 }
 
 export async function getIndustrySectors(): Promise<IndustrySector[]> {
