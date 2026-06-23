@@ -8,7 +8,7 @@ function Bar({ label, value, max, suffix = "" }: { label: string; value: number;
 export default function MsmeIntelligence() {
   const maxState = Math.max(...stateMsmeDistribution.map((s) => s.registeredMsmes));
   return <main className="min-h-screen bg-[radial-gradient(circle_at_top,#123f77_0,#02050a_44%)] px-6 py-10">
-    <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 text-sm text-white/70"><a className="font-display text-2xl font-bold text-white" href="/">NumSum</a>{["Challenges","MSME Intelligence","Research","Community","Competitions","Organizations","Knowledge Hub"].map((item) => <a key={item} className={item === "MSME Intelligence" ? "text-blue-300" : "hover:text-white"} href={item === "MSME Intelligence" ? "/msme-intelligence" : `/${item.toLowerCase().replaceAll(" ", "-")}`}>{item}</a>)}</nav>
+    
 
     <section className="mx-auto max-w-7xl py-16"><p className="text-sm uppercase tracking-[.35em] text-blue-300">MSME Intelligence</p><h1 className="mt-4 font-display text-5xl font-bold md:text-7xl">Evidence-backed MSME market intelligence</h1><p className="mt-5 max-w-3xl text-lg text-white/65">Sector, state, cluster, export and technology dashboards built from Government of India, Ministry of MSME, PIB, RAMP and IBEF references rather than placeholder data.</p><div className="mt-8 grid gap-4 md:grid-cols-4">{marketInsights.map((insight) => <Card key={insight.id}><p className="text-blue-300">{insight.metric}</p><p className="mt-3 text-white/70">{insight.insight}</p></Card>)}</div></section>
 

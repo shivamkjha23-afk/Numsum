@@ -1,3 +1,13 @@
-import { Card } from "@/components/ui";
-const modules=["Users","Organizations","Challenges","Events","Knowledge Repository","Communities","Reviewers","Teams","Submissions","Reports","Questionnaires"];
-export default function Admin(){return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">Admin Dashboard</h1><div className="mt-8 grid gap-4 md:grid-cols-3">{modules.map(m=><Card key={m}><h2 className="font-display text-2xl">{m}</h2><p className="mt-3 text-white/60">Manage, audit, configure and scale {m.toLowerCase()}.</p></Card>)}</div><Card className="mt-8"><h2 className="font-display text-3xl">Analytics</h2><div className="mt-6 grid gap-3 md:grid-cols-6">{[62,38,75,44,91,57].map((h,i)=><div key={i} className="rounded-t-xl bg-blue-500/60" style={{height:h*2}} />)}</div><p className="mt-4 text-white/60">Challenges by category, users by skill, participation trends, industry demand, popular topics and solution success rate.</p></Card></main>}
+import { AuthGate } from "@/components/auth-gate";
+import { AdminPanel } from "@/components/admin-panel";
+import { ErrorState } from "@/components/data-states";
+import { getChallenges, getOrganizations, getUsers } from "@/lib/repositories/firestore";
+
+export default async function Admin() {
+  try {
+    const [challenges, organizations, users] = await Promise.all([getChallenges(100), getOrganizations(100), getUsers(100)]);
+    return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">Admin Dashboard</h1><div className="mt-8"><AuthGate label="Admin access requires authentication."><AdminPanel challenges={challenges} organizations={organizations} users={users} /></AuthGate></div></main>;
+  } catch (error) {
+    return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">Admin Dashboard</h1><div className="mt-8"><ErrorState retryHref="/admin" message={error instanceof Error ? error.message : "Unable to load admin data."} /></div></main>;
+  }
+}

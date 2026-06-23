@@ -1,65 +1,47 @@
-import { collection, getCountFromServer, getDocs, limit, orderBy, query, where, type QueryConstraint } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDocs, limit, orderBy, query, updateDoc, where, type DocumentData, type QueryConstraint, type WithFieldValue } from "firebase/firestore";
+import { cache } from "react";
 import { db } from "@/lib/firebase";
-import type { Challenge, CommunityStats, IndustrySector, LabelItem, Organization, OrganizationStats, PlatformStats, Questionnaire } from "@/lib/types";
+import type { Challenge, Organization, PlatformStats, Questionnaire, UserProfile } from "@/lib/types";
 
-function withId<T>(doc: { id: string; data: () => unknown }): T { return { id: doc.id, ...(doc.data() as Omit<T, "id">) } as T; }
-async function countCollection(name: string, constraints: QueryConstraint[] = []) { const ref = collection(db, name); const snap = await getCountFromServer(constraints.length ? query(ref, ...constraints) : ref); return snap.data().count; }
+export const COLLECTIONS = { users: "users", organizations: "organizations", challenges: "challenges" } as const;
 
-export async function getChallenges(maxItems = 12): Promise<Challenge[]> {
-  const snap = await getDocs(query(collection(db, "challenges"), limit(maxItems)));
-  return snap.docs.map(doc => withId<Challenge>(doc));
-}
+type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
 
-export async function getOrganizations(maxItems = 12): Promise<Organization[]> {
-  const snap = await getDocs(query(collection(db, "organizations"), limit(maxItems)));
-  return snap.docs.map(doc => withId<Organization>(doc));
-}
+function withId<T>(snapshot: { id: string; data: () => DocumentData }): T { return { id: snapshot.id, ...snapshot.data() } as T; }
+function ref(name: CollectionName) { return collection(db, name); }
+function queryFor(name: CollectionName, constraints: QueryConstraint[] = []) { return constraints.length ? query(ref(name), ...constraints) : ref(name); }
 
-export async function getOrganizationStats(): Promise<OrganizationStats> {
-  const [organizations, challenges] = await Promise.all([
-    countCollection("organizations"),
-    countCollection("challenges"),
+export const countCollection = cache(async (name: CollectionName, constraints: QueryConstraint[] = []) => {
+  const snap = await getCountFromServer(queryFor(name, constraints));
+  return snap.data().count;
+});
+
+export const listCollection = cache(async <T>(name: CollectionName, constraints: QueryConstraint[] = []) => {
+  const snap = await getDocs(queryFor(name, constraints));
+  return snap.docs.map((item) => withId<T>(item));
+});
+
+export async function createRecord<T extends object>(name: CollectionName, data: WithFieldValue<T>) { return addDoc(ref(name), data); }
+export async function updateRecord(name: CollectionName, id: string, data: Record<string, unknown>) { return updateDoc(doc(db, name, id), data); }
+export async function deleteRecord(name: CollectionName, id: string) { return deleteDoc(doc(db, name, id)); }
+
+export const getChallenges = cache(async (maxItems = 12): Promise<Challenge[]> => listCollection<Challenge>(COLLECTIONS.challenges, [orderBy("createdAt", "desc"), limit(maxItems)]));
+export const getOrganizations = cache(async (maxItems = 50): Promise<Organization[]> => listCollection<Organization>(COLLECTIONS.organizations, [orderBy("name", "asc"), limit(maxItems)]));
+export const getUsers = cache(async (maxItems = 100): Promise<UserProfile[]> => listCollection<UserProfile>(COLLECTIONS.users, [limit(maxItems)]));
+
+export const getPlatformStats = cache(async (): Promise<PlatformStats> => {
+  const [communityMembers, organizations, challenges, openChallenges] = await Promise.all([
+    countCollection(COLLECTIONS.users),
+    countCollection(COLLECTIONS.organizations),
+    countCollection(COLLECTIONS.challenges),
+    countCollection(COLLECTIONS.challenges, [where("status", "==", "open")]),
   ]);
+  return { communityMembers, organizations, challenges, openChallenges };
+});
+
+export const getOrganizationStats = cache(async () => {
+  const [organizations, challenges] = await Promise.all([countCollection(COLLECTIONS.organizations), countCollection(COLLECTIONS.challenges)]);
   return { organizations, challenges };
-}
+});
 
-export async function getIndustrySectors(): Promise<IndustrySector[]> {
-  const snap = await getDocs(query(collection(db, "industry_sectors"), orderBy("sortOrder", "asc")));
-  return snap.docs.map(doc => withId<IndustrySector>(doc));
-}
-
-export async function getChallengeTypes(): Promise<LabelItem[]> {
-  const snap = await getDocs(query(collection(db, "challenge_types"), orderBy("sortOrder", "asc")));
-  return snap.docs.map(doc => withId<LabelItem>(doc));
-}
-
-export async function getQuestionnaireByType(challengeTypeId: string): Promise<Questionnaire | null> {
-  const snap = await getDocs(query(collection(db, "questionnaires"), where("challengeTypeId", "==", challengeTypeId), limit(1)));
-  return snap.empty ? null : withId<Questionnaire>(snap.docs[0]);
-}
-
-export async function getPlatformStats(): Promise<PlatformStats> {
-  const [communityMembers, organizations, challenges, knowledgeAssets] = await Promise.all([
-    countCollection("users"),
-    countCollection("organizations"),
-    countCollection("challenges"),
-    countCollection("knowledge_assets"),
-  ]);
-  return { communityMembers, organizations, challenges, knowledgeAssets };
-}
-
-export async function getCommunityStats(): Promise<CommunityStats> {
-  const [members, researchers, engineers, professionals, organizations] = await Promise.all([
-    countCollection("users"),
-    countCollection("users", [where("persona", "==", "researcher")]),
-    countCollection("users", [where("persona", "==", "engineer")]),
-    countCollection("users", [where("persona", "==", "professional")]),
-    countCollection("organizations"),
-  ]);
-  return { members, researchers, engineers, professionals, organizations };
-}
-
-export async function getLabelItems(collectionName: string): Promise<LabelItem[]> {
-  const snap = await getDocs(query(collection(db, collectionName), orderBy("sortOrder", "asc")));
-  return snap.docs.map(doc => withId<LabelItem>(doc));
-}
+export async function getQuestionnaireByType(_challengeTypeId: string): Promise<Questionnaire | null> { return null; }
