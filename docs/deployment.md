@@ -1,6 +1,6 @@
 # Deployment
 
-1. Create a Firebase project with Authentication, Firestore and Storage enabled.
+1. Create a Firebase project with Authentication and Firestore enabled.
 2. Copy `.env.example` to `.env.local` and fill all public Firebase web app variables.
 3. Run `npm install`.
 4. Run `npm run typecheck` and `npm run build`.
