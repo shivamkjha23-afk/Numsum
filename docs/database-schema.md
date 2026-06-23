@@ -7,13 +7,7 @@ NumSum uses Firebase Authentication, Firestore, Storage and Hosting. Documents i
 - `users`: profiles, skills, badges, roles, contribution score, organization memberships.
 - `organizations`: organization profile, industry, size, contacts, verification state.
 - `challenges`: problem statement, type, category, status, workspace settings, visibility, reward.
-- `challenge_categories`: challenge category taxonomy and metadata.
-- `challenge_types`: admin-managed challenge type definitions used by submission forms.
-- `industry_sectors`: admin-managed industry sector cards used across public and marketplace experiences.
-- `ecosystem_nodes`: admin-managed homepage network nodes.
-- `process_steps`: admin-managed homepage process flow steps.
-- `knowledge_categories`: admin-managed knowledge repository categories.
-- `team_roles`: admin-managed team role labels.
+- `challenge_categories`: sector taxonomy and challenge metadata.
 - `questionnaires`: admin-managed form definitions by challenge type and organization segment.
 - `questionnaire_fields`: reusable field definitions, validation, options and conditional visibility rules.
 - `teams`: challenge/event teams, purpose, status and public profile.

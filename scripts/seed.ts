@@ -1,2 +1,3 @@
-const collections = ["users","organizations","challenges","challenge_categories","challenge_types","industry_sectors","ecosystem_nodes","process_steps","knowledge_categories","team_roles","questionnaires","questionnaire_fields","teams","team_members","submissions","events","event_registrations","knowledge_assets","research_papers","community_posts","comments","reviews","review_scores","contribution_logs","badges","leaderboards","notifications","messages","admin_settings"];
-console.log(JSON.stringify({ collections, message: "Seed data should be loaded from an environment-specific, non-hardcoded dataset." }, null, 2));
+import { challenges, questionnaires } from "../lib/data";
+const collections = ["users","organizations","challenges","challenge_categories","questionnaires","questionnaire_fields","teams","team_members","submissions","events","event_registrations","knowledge_assets","research_papers","community_posts","comments","reviews","review_scores","contribution_logs","badges","leaderboards","notifications","messages","admin_settings"];
+console.log(JSON.stringify({ collections, challenges, questionnaires }, null, 2));
