@@ -36,3 +36,13 @@ NumSum uses Firebase Authentication, Firestore, Storage and Hosting. Documents i
 - `submissions/{submissionId}/versions/{versionId}/*`
 - `knowledge/{assetId}/*`
 - `users/{userId}/profile/*`
+
+## MSME Intelligence collections
+
+- `industry_clusters`: real manufacturing and export-oriented cluster profiles including cluster name, state, specialization, enterprise descriptor and export-readiness marker.
+- `msme_sectors`: Ministry of MSME sector distribution records with employment in lakh, share percentage and source note.
+- `government_schemes`: central MSME scheme catalog with agency and capability-building focus.
+- `export_opportunities`: product-category export opportunities with priority markets and positioning notes.
+- `industry_reports`: source reports used by the intelligence module, including publisher and year.
+- `market_insights`: evidence-backed summaries and metrics used in the dashboard cards.
+- `technology_trends`: MSME technology adoption themes with adoption area and maturity score for dashboard visualization.

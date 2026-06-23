@@ -1,4 +1,5 @@
 import type { Challenge, Questionnaire } from "./types";
+export const navItems = ["Home","Challenges","MSME Intelligence","Research","Community","Competitions","Organizations","Knowledge Hub"] as const;
 export const sectors = ["Manufacturing","Quality","Reliability","Energy","Automation","Digital Transformation","Supply Chain","Product Design","Sustainability","Exports","AI","Operations"];
 export const skills = ["Mechanical","Electrical","Electronics","Software","AI","Data Science","Manufacturing","Quality","Business","Marketing","Finance","Design","Research","Operations"];
 export const challenges: Challenge[] = [
