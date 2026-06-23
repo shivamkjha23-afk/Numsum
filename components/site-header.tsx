@@ -7,9 +7,8 @@ const links = [
   ["MSME Intelligence", "/msme-intelligence"],
   ["Research", "/research"],
   ["Community", "/community"],
-  ["Competitions", "/competitions"],
   ["Organizations", "/organizations"],
-  ["Knowledge Hub", "/knowledge"],
+  ["Knowledge", "/knowledge"],
 ];
 
 export function SiteHeader() {
