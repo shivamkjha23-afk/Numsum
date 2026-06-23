@@ -7,14 +7,14 @@ Production-grade Next.js platform prototype for connecting real-world industrial
 - Next.js 15, TypeScript, TailwindCSS
 - ShadCN-compatible component primitives
 - Framer Motion
-- Firebase Auth, Firestore, Storage and Hosting
+- Firebase Auth, Firestore and Hosting
 
 ## Features
 
 - Futuristic public landing page with animated network visualization
-- Challenge marketplace and dynamic challenge submission questionnaire
-- Community, knowledge repository, team formation and admin dashboard routes
-- Firebase integration module, RBAC helper and scalable Firestore schema docs
+- Public homepage, challenge marketplace, organizations, research, competitions, community discussions and knowledge hub
+- Authenticated action routes for submitting challenges, creating teams, joining competitions, posting discussions, commenting, uploading research and dashboards
+- Firebase integration module, visitor/member/organization/admin RBAC helper and scalable Firestore schema docs
 
 ## Commands
 

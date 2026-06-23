@@ -1,3 +1,20 @@
 import type { Role } from "./types";
-const permissions = { visitor:["read:public"], community_member:["read:public","create:post","join:team","submit:solution"], organization_user:["read:public","create:challenge","manage:organization"], reviewer:["read:public","score:submission"], moderator:["read:public","moderate:community"], administrator:["*"] } satisfies Record<Role,string[]>;
-export function can(role: Role, permission: string) { return permissions[role].includes("*") || permissions[role].includes(permission); }
+
+export const defaultRole: Role = "visitor";
+
+export const roles = ["visitor", "member", "organization", "admin"] as const satisfies readonly Role[];
+
+const permissions = {
+  visitor: ["read:public"],
+  member: ["read:public", "create:team", "join:competition", "create:discussion", "comment", "upload:research"],
+  organization: ["read:public", "create:team", "join:competition", "create:discussion", "comment", "upload:research", "submit:challenge", "manage:organization"],
+  admin: ["*"],
+} satisfies Record<Role, string[]>;
+
+export function isRole(value: string | undefined): value is Role {
+  return roles.includes(value as Role);
+}
+
+export function can(role: Role = defaultRole, permission: string) {
+  return permissions[role].includes("*") || permissions[role].includes(permission);
+}
