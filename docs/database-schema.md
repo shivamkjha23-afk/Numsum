@@ -1,6 +1,6 @@
 # NumSum Firebase Data Model
 
-NumSum uses Firebase Authentication, Firestore, Storage and Hosting. Documents include `tenantId`, `createdAt`, `updatedAt`, `createdBy`, and RBAC metadata where applicable to support multi-organization scale.
+NumSum uses Firebase Authentication, Firestore and Hosting. Documents include `tenantId`, `createdAt`, `updatedAt`, `createdBy`, and RBAC metadata where applicable to support multi-organization scale.
 
 ## Collections
 
@@ -28,7 +28,7 @@ NumSum uses Firebase Authentication, Firestore, Storage and Hosting. Documents i
 - `messages`: direct and workspace messages.
 - `admin_settings`: platform feature flags, scoring weights, questionnaire rules and moderation policies.
 
-## Storage paths
+## MSME Intelligence collections
 
 - `organizations/{organizationId}/verification/*`
 - `challenges/{challengeId}/attachments/*`
