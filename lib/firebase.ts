@@ -10,20 +10,16 @@ const requiredEnv = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 } satisfies Record<string, string | undefined>;
 
-const missingEnvVars = Object.entries(requiredEnv)
+export const missingFirebaseEnvVars = Object.entries(requiredEnv)
   .filter(([, value]) => !value)
   .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, "_$1").toUpperCase()}`);
 
-if (missingEnvVars.length > 0) {
-  throw new Error(`Missing Firebase environment variables: ${missingEnvVars.join(", ")}`);
-}
-
 const firebaseConfig: FirebaseOptions = {
-  apiKey: requiredEnv.apiKey,
-  authDomain: requiredEnv.authDomain,
-  projectId: requiredEnv.projectId,
-  messagingSenderId: requiredEnv.messagingSenderId,
-  appId: requiredEnv.appId,
+  apiKey: requiredEnv.apiKey || "build-placeholder-api-key",
+  authDomain: requiredEnv.authDomain || "build-placeholder.firebaseapp.com",
+  projectId: requiredEnv.projectId || "build-placeholder",
+  messagingSenderId: requiredEnv.messagingSenderId || "000000000000",
+  appId: requiredEnv.appId || "1:000000000000:web:0000000000000000000000",
 };
 
 export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
