@@ -1,0 +1,5 @@
+
+.tsbuildinfo
+*.tsbuildinfo
+.next
+node_modules
