@@ -1,55 +1,283 @@
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getCountFromServer, increment, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, type DocumentData, type QueryConstraint, type WithFieldValue } from "firebase/firestore";
+import {
+  addDoc,
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getCountFromServer,
+  increment,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+  type DocumentData,
+  type QueryConstraint,
+  type WithFieldValue,
+} from "firebase/firestore";
 import type { User as FirebaseUser } from "firebase/auth";
 import { cache } from "react";
-import { db } from "@/lib/firebase";
-import { getInitializationStatus, initializePlatform } from "@/lib/platform-initialization";
+import { auth, db } from "@/lib/firebase";
+import {
+  getInitializationStatus,
+  initializePlatform,
+} from "@/lib/platform-initialization";
 export { getInitializationStatus, initializePlatform };
-import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, CompetitionSubmission, CompetitionTeam, InternalThread, KnowledgeAsset, Notification, Organization, PrivateCollaborationGroup, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, TeamMember, UserProfile } from "@/lib/types";
+import type {
+  AdminApplication,
+  AdminInboxItem,
+  AuditLog,
+  CareerApplication,
+  CareerOpening,
+  ChallengeReview,
+  CollaborationRequest,
+  CommunityPost,
+  DiscussionTargetType,
+  Competition,
+  CompetitionSubmission,
+  CompetitionTeam,
+  InternalThread,
+  KnowledgeAsset,
+  Notification,
+  Organization,
+  PrivateCollaborationGroup,
+  ProblemStatement,
+  QuestionnaireTemplate,
+  ResearchPost,
+  SearchResult,
+  SystemStats,
+  TeamMember,
+  UserProfile,
+} from "@/lib/types";
 
 export const COLLECTIONS = {
-  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", systemDocuments: "system_documents", settings: "settings", roleDefinitions: "role_definitions", auditLogs: "audit_logs", privateCollaborationGroups: "private_collaboration_groups", competitionTeams: "competition_teams", competitionSubmissions: "competition_submissions",
-  challenges: "problem_statements", challengeReviews: "problem_reviews",
+  users: "users",
+  organizations: "organizations",
+  problemStatements: "problem_statements",
+  questionnaireTemplates: "questionnaire_templates",
+  problemReviews: "problem_reviews",
+  internalThreads: "internal_threads",
+  communityPosts: "community_posts",
+  researchPosts: "research_posts",
+  knowledgeAssets: "knowledge_assets",
+  competitions: "competitions",
+  collaborationRequests: "collaboration_requests",
+  careerOpenings: "career_openings",
+  careerApplications: "career_applications",
+  notifications: "notifications",
+  adminApplications: "admin_applications",
+  adminInbox: "admin_inbox",
+  bootstrapAdmins: "bootstrap_admins",
+  teamMembers: "team_members",
+  systemStats: "system_stats",
+  systemDocuments: "system_documents",
+  settings: "settings",
+  roleDefinitions: "role_definitions",
+  auditLogs: "audit_logs",
+  privateCollaborationGroups: "private_collaboration_groups",
+  competitionTeams: "competition_teams",
+  competitionSubmissions: "competition_submissions",
+  challenges: "problem_statements",
+  challengeReviews: "problem_reviews",
 } as const;
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
 
-function withId<T>(snapshot: { id: string; data: () => DocumentData }): T { return { id: snapshot.id, ...snapshot.data() } as T; }
-function ref(name: CollectionName) { return collection(db, name); }
-function queryFor(name: CollectionName, constraints: QueryConstraint[] = []) { return constraints.length ? query(ref(name), ...constraints) : ref(name); }
-export const listCollection = cache(async <T>(name: CollectionName, constraints: QueryConstraint[] = []) => (await getDocs(queryFor(name, constraints))).docs.map((item) => withId<T>(item)));
-export async function getRecord<T>(name: CollectionName, id: string) { const snap = await getDoc(doc(db, name, id)); return snap.exists() ? withId<T>(snap) : null; }
-export async function createRecord<T extends object>(name: CollectionName, data: WithFieldValue<Omit<T, "id">>) { return addDoc(ref(name), data); }
-export async function updateRecord(name: CollectionName, id: string, data: Record<string, unknown>) { return updateDoc(doc(db, name, id), { ...data, updatedAt: serverTimestamp() }); }
-export async function upsertRecord(name: CollectionName, id: string, data: Record<string, unknown>) { return setDoc(doc(db, name, id), data, { merge: true }); }
-export async function deleteRecord(name: CollectionName, id: string) { return deleteDoc(doc(db, name, id)); }
+function withId<T>(snapshot: { id: string; data: () => DocumentData }): T {
+  return { id: snapshot.id, ...snapshot.data() } as T;
+}
+function ref(name: CollectionName) {
+  return collection(db, name);
+}
+function queryFor(name: CollectionName, constraints: QueryConstraint[] = []) {
+  return constraints.length ? query(ref(name), ...constraints) : ref(name);
+}
+function withoutUndefined<T>(value: T): T {
+  if (Array.isArray(value))
+    return value
+      .map((item) => withoutUndefined(item))
+      .filter((item) => item !== undefined) as T;
+  if (value && typeof value === "object") {
+    if (
+      value instanceof Date ||
+      "seconds" in (value as Record<string, unknown>) ||
+      "_methodName" in (value as Record<string, unknown>)
+    )
+      return value;
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, withoutUndefined(item)]),
+    ) as T;
+  }
+  return value;
+}
+function currentUserForLog() {
+  return {
+    uid: auth.currentUser?.uid || null,
+    email: auth.currentUser?.email || null,
+    role: null as string | null,
+  };
+}
+function traceRepositoryRead(
+  collectionName: CollectionName,
+  filters: string[],
+  order: string[],
+) {
+  console.info("[FIRESTORE_TRACE]", {
+    collection: collectionName,
+    filters,
+    orderBy: order,
+    currentUser: currentUserForLog(),
+    currentRole: null,
+  });
+}
+export const listCollection = cache(
+  async <T>(name: CollectionName, constraints: QueryConstraint[] = []) =>
+    (await getDocs(queryFor(name, constraints))).docs.map((item) =>
+      withId<T>(item),
+    ),
+);
+export async function getRecord<T>(name: CollectionName, id: string) {
+  const snap = await getDoc(doc(db, name, id));
+  return snap.exists() ? withId<T>(snap) : null;
+}
+export async function createRecord<T extends object>(
+  name: CollectionName,
+  data: WithFieldValue<Omit<T, "id">>,
+) {
+  return addDoc(ref(name), withoutUndefined(data));
+}
+export async function updateRecord(
+  name: CollectionName,
+  id: string,
+  data: Record<string, unknown>,
+) {
+  return updateDoc(
+    doc(db, name, id),
+    withoutUndefined({ ...data, updatedAt: serverTimestamp() }),
+  );
+}
+export async function upsertRecord(
+  name: CollectionName,
+  id: string,
+  data: Record<string, unknown>,
+) {
+  return setDoc(doc(db, name, id), withoutUndefined(data), { merge: true });
+}
+export async function deleteRecord(name: CollectionName, id: string) {
+  return deleteDoc(doc(db, name, id));
+}
 
-export async function logAudit(data: Omit<AuditLog, "id" | "createdAt">) { return createRecord<AuditLog>(COLLECTIONS.auditLogs, { ...data, createdAt: serverTimestamp() } as WithFieldValue<Omit<AuditLog, "id">>); }
-export async function bumpStats(field: keyof Omit<SystemStats, "id" | "lastUpdated">, by = 1) { return upsertRecord(COLLECTIONS.systemStats, "platform", { [field]: increment(by), lastUpdated: serverTimestamp() }); }
-export async function routeToAdminInbox(data: Omit<AdminInboxItem, "id" | "createdAt" | "updatedAt" | "status">) { return createRecord<AdminInboxItem>(COLLECTIONS.adminInbox, { ...data, status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<AdminInboxItem, "id">>); }
-export async function createNotification(data: Omit<Notification, "id" | "createdAt" | "read">) { return createRecord<Notification>(COLLECTIONS.notifications, { ...data, read: false, createdAt: serverTimestamp() } as WithFieldValue<Omit<Notification, "id">>); }
+export async function logAudit(data: Omit<AuditLog, "id" | "createdAt">) {
+  return createRecord<AuditLog>(COLLECTIONS.auditLogs, {
+    ...data,
+    createdAt: serverTimestamp(),
+  } as WithFieldValue<Omit<AuditLog, "id">>);
+}
+export async function bumpStats(
+  field: keyof Omit<SystemStats, "id" | "lastUpdated">,
+  by = 1,
+) {
+  return upsertRecord(COLLECTIONS.systemStats, "platform", {
+    [field]: increment(by),
+    lastUpdated: serverTimestamp(),
+  });
+}
+export async function routeToAdminInbox(
+  data: Omit<AdminInboxItem, "id" | "createdAt" | "updatedAt" | "status">,
+) {
+  return createRecord<AdminInboxItem>(COLLECTIONS.adminInbox, {
+    ...data,
+    status: "open",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  } as WithFieldValue<Omit<AdminInboxItem, "id">>);
+}
+export async function createNotification(
+  data: Omit<Notification, "id" | "createdAt" | "read">,
+) {
+  return createRecord<Notification>(COLLECTIONS.notifications, {
+    ...data,
+    read: false,
+    createdAt: serverTimestamp(),
+  } as WithFieldValue<Omit<Notification, "id">>);
+}
 
 const BOOTSTRAP_ADMIN_EMAIL = "subhshivam22@gmail.com";
 const BOOTSTRAP_ADMIN_NAME = "Roopveer Jha";
-export function normalizeEmail(email?: string | null) { return email?.trim().toLowerCase() || ""; }
-export async function ensureBootstrapAdminRegistry() { return upsertRecord(COLLECTIONS.bootstrapAdmins, BOOTSTRAP_ADMIN_EMAIL, { email: BOOTSTRAP_ADMIN_EMAIL, name: BOOTSTRAP_ADMIN_NAME, role: "admin", active: true, updatedAt: serverTimestamp() }); }
+export function normalizeEmail(email?: string | null) {
+  return email?.trim().toLowerCase() || "";
+}
+export async function ensureBootstrapAdminRegistry() {
+  return upsertRecord(COLLECTIONS.bootstrapAdmins, BOOTSTRAP_ADMIN_EMAIL, {
+    email: BOOTSTRAP_ADMIN_EMAIL,
+    name: BOOTSTRAP_ADMIN_NAME,
+    role: "admin",
+    active: true,
+    updatedAt: serverTimestamp(),
+  });
+}
 export async function isBootstrapAdminEmail(email?: string | null) {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   if (normalized === BOOTSTRAP_ADMIN_EMAIL) {
-    try { await ensureBootstrapAdminRegistry(); }
-    catch (error) { console.warn("[ADMIN] Unable to update bootstrap admin registry; continuing with configured bootstrap email", error); }
+    try {
+      await ensureBootstrapAdminRegistry();
+    } catch (error) {
+      console.warn(
+        "[ADMIN] Unable to update bootstrap admin registry; continuing with configured bootstrap email",
+        error,
+      );
+    }
   }
-  const admin = await getRecord<{ active?: boolean; role?: string }>(COLLECTIONS.bootstrapAdmins, normalized);
+  const admin = await getRecord<{ active?: boolean; role?: string }>(
+    COLLECTIONS.bootstrapAdmins,
+    normalized,
+  );
   return Boolean(admin?.active !== false && admin?.role === "admin");
 }
-export async function ensureUserProfile(user: FirebaseUser): Promise<UserProfile> {
-  console.info("[AUTH] Ensuring user profile", { uid: user.uid, email: user.email });
+export async function ensureUserProfile(
+  user: FirebaseUser,
+): Promise<UserProfile> {
+  console.info("[AUTH] Ensuring user profile", {
+    uid: user.uid,
+    email: user.email,
+  });
   const existing = await getRecord<UserProfile>(COLLECTIONS.users, user.uid);
   const isBootstrapAdmin = await isBootstrapAdminEmail(user.email);
-  console.info("[ADMIN] Bootstrap admin check", { uid: user.uid, email: normalizeEmail(user.email), bootstrapMatch: isBootstrapAdmin });
-  const base = { email: user.email || "", displayName: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), name: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), updatedAt: serverTimestamp() };
+  console.info("[ADMIN] Bootstrap admin check", {
+    uid: user.uid,
+    email: normalizeEmail(user.email),
+    bootstrapMatch: isBootstrapAdmin,
+  });
+  const base = {
+    email: user.email || "",
+    displayName:
+      user.displayName ||
+      (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"),
+    name:
+      user.displayName ||
+      (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"),
+    updatedAt: serverTimestamp(),
+  };
   if (!existing) {
-    const profile = { uid: user.uid, ...base, role: isBootstrapAdmin ? "admin" : "member", status: "active", createdAt: serverTimestamp() };
-    console.info("[PROFILE] Creating user profile", { uid: user.uid, email: base.email, role: profile.role });
+    const profile = {
+      uid: user.uid,
+      ...base,
+      role: isBootstrapAdmin ? "admin" : "member",
+      status: "active",
+      createdAt: serverTimestamp(),
+    };
+    console.info("[PROFILE] Creating user profile", {
+      uid: user.uid,
+      email: base.email,
+      role: profile.role,
+    });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
     await bumpStats("memberCount");
     return { id: user.uid, ...profile } as UserProfile;
@@ -58,142 +286,1341 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<UserProfile
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
   if (!existing.status) patch.status = "active";
   if (!existing.role) patch.role = "member";
-  if (isBootstrapAdmin && existing.role !== "admin" && existing.role !== "super_admin") patch.role = "admin";
-  console.info("[PROFILE] Updating user profile", { uid: user.uid, role: patch.role || existing.role });
+  if (
+    isBootstrapAdmin &&
+    existing.role !== "admin" &&
+    existing.role !== "super_admin"
+  )
+    patch.role = "admin";
+  console.info("[PROFILE] Updating user profile", {
+    uid: user.uid,
+    role: patch.role || existing.role,
+  });
   await upsertRecord(COLLECTIONS.users, user.uid, patch);
-  return { ...existing, uid: user.uid, email: base.email, displayName: base.displayName, name: base.name, status: (patch.status as string) || existing.status || "active", role: (patch.role as UserProfile["role"]) || existing.role || "member" } as UserProfile;
+  return {
+    ...existing,
+    uid: user.uid,
+    email: base.email,
+    displayName: base.displayName,
+    name: base.name,
+    status: (patch.status as string) || existing.status || "active",
+    role: (patch.role as UserProfile["role"]) || existing.role || "member",
+  } as UserProfile;
 }
 
-export async function notifyAdmins(type: Notification["type"], title: string, message: string, problemStatementId?: string) { return createNotification({ userId: "admins", type, title, message, problemStatementId }); }
+export async function notifyAdmins(
+  type: Notification["type"],
+  title: string,
+  message: string,
+  problemStatementId?: string,
+) {
+  return createNotification({
+    userId: "admins",
+    type,
+    title,
+    message,
+    problemStatementId,
+  });
+}
 
-function publicConstraints(publicOnly = true) { return publicOnly ? [where("visibility", "==", "public")] : []; }
-export const getProblemStatements = cache(async (maxItems = 12, publicOnly = true): Promise<ProblemStatement[]> => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [...publicConstraints(publicOnly), orderBy("createdAt", "desc"), limit(maxItems)]).catch(() => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [orderBy("createdAt", "desc"), limit(maxItems)])));
+function publicConstraints(publicOnly = true) {
+  return publicOnly ? [where("visibility", "==", "public")] : [];
+}
+function byCreatedAtDesc<T extends { createdAt?: unknown }>(rows: T[]) {
+  return [...rows].sort((a, b) =>
+    String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
+  );
+}
+export const getProblemStatements = cache(
+  async (maxItems = 12, publicOnly = true): Promise<ProblemStatement[]> => {
+    traceRepositoryRead(
+      COLLECTIONS.problemStatements,
+      publicOnly ? ["visibility == public"] : [],
+      publicOnly ? ["client: createdAt desc"] : ["createdAt desc"],
+    );
+    const rows = await listCollection<ProblemStatement>(
+      COLLECTIONS.problemStatements,
+      publicOnly
+        ? [...publicConstraints(true), limit(maxItems)]
+        : [orderBy("createdAt", "desc"), limit(maxItems)],
+    );
+    return publicOnly ? byCreatedAtDesc(rows) : rows;
+  },
+);
 export const getChallenges = getProblemStatements;
-export const getAllProblemStatements = cache(async (maxItems = 100): Promise<ProblemStatement[]> => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [orderBy("createdAt", "desc"), limit(maxItems)]));
+export const getAllProblemStatements = cache(
+  async (maxItems = 100): Promise<ProblemStatement[]> =>
+    listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
+      orderBy("createdAt", "desc"),
+      limit(maxItems),
+    ]),
+);
 export const getAllChallenges = getAllProblemStatements;
-export const getSubmittedProblemStatements = cache(async () => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("status", "in", ["submitted", "under_review", "needs_information"]), limit(100)]));
+export const getSubmittedProblemStatements = cache(async () =>
+  listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
+    where("status", "in", ["submitted", "under_review", "needs_information"]),
+    limit(100),
+  ]),
+);
 export const getSubmittedChallenges = getSubmittedProblemStatements;
-export const getProblemStatementsByOrganization = cache(async (organizationId: string, admin = false) => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("organizationId", "==", organizationId), ...(admin ? [] : [where("visibility", "==", "public")]), limit(100)]));
+export const getProblemStatementsByOrganization = cache(
+  async (organizationId: string, admin = false) =>
+    listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
+      where("organizationId", "==", organizationId),
+      ...(admin ? [] : [where("visibility", "==", "public")]),
+      limit(100),
+    ]),
+);
 export const getChallengesByOrganization = getProblemStatementsByOrganization;
-export const getOrganizations = cache(async (maxItems = 50): Promise<Organization[]> => listCollection<Organization>(COLLECTIONS.organizations, [orderBy("name", "asc"), limit(maxItems)]));
-export const getTeamMembers = cache(async (): Promise<TeamMember[]> => listCollection<TeamMember>(COLLECTIONS.teamMembers, [orderBy("displayOrder", "asc"), limit(100)]).catch(() => listCollection<TeamMember>(COLLECTIONS.teamMembers, [limit(100)])));
-export const getUsers = cache(async (maxItems = 100): Promise<UserProfile[]> => listCollection<UserProfile>(COLLECTIONS.users, [limit(maxItems)]));
-export const getPlatformStats = cache(async (): Promise<SystemStats | null> => getRecord<SystemStats>(COLLECTIONS.systemStats, "platform").catch(() => null));
+export const getOrganizations = cache(
+  async (maxItems = 50): Promise<Organization[]> =>
+    listCollection<Organization>(COLLECTIONS.organizations, [
+      orderBy("name", "asc"),
+      limit(maxItems),
+    ]),
+);
+export const getTeamMembers = cache(
+  async (): Promise<TeamMember[]> =>
+    listCollection<TeamMember>(COLLECTIONS.teamMembers, [
+      orderBy("displayOrder", "asc"),
+      limit(100),
+    ]).catch(() =>
+      listCollection<TeamMember>(COLLECTIONS.teamMembers, [limit(100)]),
+    ),
+);
+export const getUsers = cache(
+  async (maxItems = 100): Promise<UserProfile[]> =>
+    listCollection<UserProfile>(COLLECTIONS.users, [limit(maxItems)]),
+);
+export const getPlatformStats = cache(
+  async (): Promise<SystemStats | null> =>
+    getRecord<SystemStats>(COLLECTIONS.systemStats, "platform").catch(
+      () => null,
+    ),
+);
 export async function getOrCreatePlatformStats(): Promise<SystemStats> {
   const existing = await getPlatformStats();
   if (existing) return existing;
-  const [members, organizations, problems, research, competitions, knowledge] = await Promise.all([
-    getCountFromServer(ref(COLLECTIONS.users)),
-    getCountFromServer(ref(COLLECTIONS.organizations)),
-    getCountFromServer(ref(COLLECTIONS.problemStatements)),
-    getCountFromServer(ref(COLLECTIONS.researchPosts)),
-    getCountFromServer(ref(COLLECTIONS.competitions)),
-    getCountFromServer(ref(COLLECTIONS.knowledgeAssets)),
-  ]);
-  const stats = { memberCount: members.data().count, organizationCount: organizations.data().count, problemStatementCount: problems.data().count, challengeCount: problems.data().count, researchCount: research.data().count, competitionCount: competitions.data().count, knowledgeCount: knowledge.data().count, lastUpdated: serverTimestamp() };
+  const [members, organizations, problems, research, competitions, knowledge] =
+    await Promise.all([
+      getCountFromServer(ref(COLLECTIONS.users)),
+      getCountFromServer(ref(COLLECTIONS.organizations)),
+      getCountFromServer(ref(COLLECTIONS.problemStatements)),
+      getCountFromServer(ref(COLLECTIONS.researchPosts)),
+      getCountFromServer(ref(COLLECTIONS.competitions)),
+      getCountFromServer(ref(COLLECTIONS.knowledgeAssets)),
+    ]);
+  const stats = {
+    memberCount: members.data().count,
+    organizationCount: organizations.data().count,
+    problemStatementCount: problems.data().count,
+    challengeCount: problems.data().count,
+    researchCount: research.data().count,
+    competitionCount: competitions.data().count,
+    knowledgeCount: knowledge.data().count,
+    lastUpdated: serverTimestamp(),
+  };
   await upsertRecord(COLLECTIONS.systemStats, "platform", stats);
   return { id: "platform", ...stats, lastUpdated: null } as SystemStats;
 }
-export const getQuestionnaireTemplates = cache(async () => listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [orderBy("category", "asc")]));
-export async function getQuestionnaireByType(category: string) { const rows = await listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [where("category", "==", category), limit(1)]); return rows[0] || null; }
-export const getAdminApplications = cache(async () => listCollection<AdminApplication>(COLLECTIONS.adminApplications, [orderBy("createdAt", "desc"), limit(100)]));
-export const getAdminInbox = cache(async () => listCollection<AdminInboxItem>(COLLECTIONS.adminInbox, [orderBy("createdAt", "desc"), limit(100)]));
-export const getNotificationsForUser = cache(async (userId: string) => listCollection<Notification>(COLLECTIONS.notifications, [where("userId", "in", [userId, "admins"]), orderBy("createdAt", "desc"), limit(50)]).catch(() => listCollection<Notification>(COLLECTIONS.notifications, [where("userId", "==", userId), orderBy("createdAt", "desc"), limit(50)])));
-export const getResearchPosts = cache(async (publicOnly = true) => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [...publicConstraints(publicOnly), orderBy("createdAt", "desc"), limit(100)]).catch(() => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [orderBy("createdAt", "desc"), limit(100)])));
-export const getKnowledgeAssets = cache(async () => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("visibility", "==", "public"), orderBy("createdAt", "desc"), limit(100)]).catch(() => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [orderBy("createdAt", "desc"), limit(100)])));
-export const getCommunityPosts = cache(async () => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("visibility", "==", "public"), orderBy("createdAt", "desc"), limit(100)]).catch(() => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [orderBy("createdAt", "desc"), limit(100)])));
-export const getCompetitions = cache(async (publicOnly = true) => listCollection<Competition>(COLLECTIONS.competitions, [...publicConstraints(publicOnly), orderBy("createdAt", "desc"), limit(100)]).catch(() => listCollection<Competition>(COLLECTIONS.competitions, [orderBy("createdAt", "desc"), limit(100)])));
-export const getInternalThreads = cache(async () => listCollection<InternalThread>(COLLECTIONS.internalThreads, [orderBy("createdAt", "desc"), limit(100)]));
-export const getCareerOpenings = cache(async () => listCollection<CareerOpening>(COLLECTIONS.careerOpenings, [where("visibility", "==", "public"), orderBy("createdAt", "desc"), limit(100)]).catch(() => listCollection<CareerOpening>(COLLECTIONS.careerOpenings, [orderBy("createdAt", "desc"), limit(100)])));
+export const getQuestionnaireTemplates = cache(async () =>
+  listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [
+    orderBy("category", "asc"),
+  ]),
+);
+export async function getQuestionnaireByType(category: string) {
+  const rows = await listCollection<QuestionnaireTemplate>(
+    COLLECTIONS.questionnaireTemplates,
+    [where("category", "==", category), limit(1)],
+  );
+  return rows[0] || null;
+}
+export const getAdminApplications = cache(async () =>
+  listCollection<AdminApplication>(COLLECTIONS.adminApplications, [
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]),
+);
+export const getAdminInbox = cache(async () =>
+  listCollection<AdminInboxItem>(COLLECTIONS.adminInbox, [
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]),
+);
+export const getNotificationsForUser = cache(async (userId: string) =>
+  listCollection<Notification>(COLLECTIONS.notifications, [
+    where("userId", "in", [userId, "admins"]),
+    orderBy("createdAt", "desc"),
+    limit(50),
+  ]).catch(() =>
+    listCollection<Notification>(COLLECTIONS.notifications, [
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(50),
+    ]),
+  ),
+);
+export const getResearchPosts = cache(async (publicOnly = true) => {
+  traceRepositoryRead(
+    COLLECTIONS.researchPosts,
+    publicOnly ? ["visibility == public"] : [],
+    publicOnly ? ["client: createdAt desc"] : ["createdAt desc"],
+  );
+  const rows = await listCollection<ResearchPost>(
+    COLLECTIONS.researchPosts,
+    publicOnly
+      ? [...publicConstraints(true), limit(100)]
+      : [orderBy("createdAt", "desc"), limit(100)],
+  );
+  return publicOnly ? byCreatedAtDesc(rows) : rows;
+});
+export const getKnowledgeAssets = cache(async (publicOnly = true) => {
+  traceRepositoryRead(
+    COLLECTIONS.knowledgeAssets,
+    publicOnly ? ["visibility == public"] : [],
+    publicOnly ? ["client: createdAt desc"] : ["createdAt desc"],
+  );
+  const rows = await listCollection<KnowledgeAsset>(
+    COLLECTIONS.knowledgeAssets,
+    publicOnly
+      ? [where("visibility", "==", "public"), limit(100)]
+      : [orderBy("createdAt", "desc"), limit(100)],
+  );
+  return publicOnly ? byCreatedAtDesc(rows) : rows;
+});
+export const getCommunityPosts = cache(async () => {
+  traceRepositoryRead(
+    COLLECTIONS.communityPosts,
+    ["visibility == public"],
+    ["client: createdAt desc"],
+  );
+  return byCreatedAtDesc(
+    await listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
+      where("visibility", "==", "public"),
+      limit(100),
+    ]),
+  );
+});
+export const getCompetitions = cache(async (publicOnly = true) => {
+  traceRepositoryRead(
+    COLLECTIONS.competitions,
+    publicOnly ? ["visibility == public"] : [],
+    publicOnly ? ["client: createdAt desc"] : ["createdAt desc"],
+  );
+  const rows = await listCollection<Competition>(
+    COLLECTIONS.competitions,
+    publicOnly
+      ? [...publicConstraints(true), limit(100)]
+      : [orderBy("createdAt", "desc"), limit(100)],
+  );
+  return publicOnly ? byCreatedAtDesc(rows) : rows;
+});
+export const getInternalThreads = cache(async () =>
+  listCollection<InternalThread>(COLLECTIONS.internalThreads, [
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]),
+);
+export const getCareerOpenings = cache(async () =>
+  listCollection<CareerOpening>(COLLECTIONS.careerOpenings, [
+    where("visibility", "==", "public"),
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]).catch(() =>
+    listCollection<CareerOpening>(COLLECTIONS.careerOpenings, [
+      orderBy("createdAt", "desc"),
+      limit(100),
+    ]),
+  ),
+);
 
-export async function createProblemStatement(data: Omit<ProblemStatement, "id" | "createdAt" | "updatedAt" | "status" | "visibility">) {
-  if (!data.title?.trim()) throw new Error("Problem statement title is required.");
+export async function createProblemStatement(
+  data: Omit<
+    ProblemStatement,
+    "id" | "createdAt" | "updatedAt" | "status" | "visibility"
+  >,
+) {
+  if (!data.title?.trim())
+    throw new Error("Problem statement title is required.");
   const createdBy = data.createdBy || data.submittedBy || "";
-  const payload = { ...data, summary: data.summary || data.description || "", problemDescription: data.problemDescription || data.problemStatement || data.description || "", questionnaireResponses: data.questionnaireResponses || data.questionnaire || {}, attachments: data.attachments || [], createdBy, submittedBy: data.submittedBy || createdBy, status: "submitted", visibility: "member_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
-  const created = await createRecord<ProblemStatement>(COLLECTIONS.problemStatements, payload as WithFieldValue<Omit<ProblemStatement, "id">>);
+  const payload = {
+    ...data,
+    summary: data.summary || data.description || "",
+    problemDescription:
+      data.problemDescription ||
+      data.problemStatement ||
+      data.description ||
+      "",
+    questionnaireResponses:
+      data.questionnaireResponses || data.questionnaire || {},
+    attachments: data.attachments || [],
+    createdBy,
+    submittedBy: data.submittedBy || createdBy,
+    status: "submitted",
+    visibility: "member_only",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const created = await createRecord<ProblemStatement>(
+    COLLECTIONS.problemStatements,
+    payload as WithFieldValue<Omit<ProblemStatement, "id">>,
+  );
   await bumpStats("problemStatementCount");
-  await routeToAdminInbox({ type: "problem_submission", title: data.title, description: payload.summary, sourceCollection: COLLECTIONS.problemStatements, sourceId: created.id, createdBy });
-  await logAudit({ actorId: createdBy || "system", action: "problem_submitted", collectionName: COLLECTIONS.problemStatements, documentId: created.id, after: { status: "submitted", visibility: "member_only" } });
-  if (createdBy) await createNotification({ userId: createdBy, type: "problem_submission", title: "Problem statement submitted", message: data.title, problemStatementId: created.id });
-  await notifyAdmins("problem_submission", "New Problem Statement", data.title, created.id);
+  await routeToAdminInbox({
+    type: "problem_submission",
+    title: data.title,
+    description: payload.summary,
+    sourceCollection: COLLECTIONS.problemStatements,
+    sourceId: created.id,
+    createdBy,
+  });
+  await logAudit({
+    actorId: createdBy || "system",
+    action: "problem_submitted",
+    collectionName: COLLECTIONS.problemStatements,
+    documentId: created.id,
+    after: { status: "submitted", visibility: "member_only" },
+  });
+  if (createdBy)
+    await createNotification({
+      userId: createdBy,
+      type: "problem_submission",
+      title: "Problem statement submitted",
+      message: data.title,
+      problemStatementId: created.id,
+    });
+  await notifyAdmins(
+    "problem_submission",
+    "New Problem Statement",
+    data.title,
+    created.id,
+  );
   return created;
 }
 export const createChallengeFromProblem = createProblemStatement;
-export async function createResearchPost(data: Omit<ResearchPost, "id" | "createdAt" | "updatedAt" | "status" | "visibility">) { const problemStatementId = data.problemStatementId || data.associatedProblemId; const payload = { ...data, problemStatementId, associatedProblemId: problemStatementId, documentLinks: data.documentLinks || [data.documentLink, data.supportingFolderLink, ...(data.externalReferences || [])].filter(Boolean), status: "submitted", visibility: "private", createdAt: serverTimestamp(), updatedAt: serverTimestamp() }; const created = await createRecord<ResearchPost>(COLLECTIONS.researchPosts, payload as WithFieldValue<Omit<ResearchPost, "id">>); await bumpStats("researchCount"); await routeToAdminInbox({ type: "research_submission", title: data.title, description: data.summary || data.abstract, sourceCollection: COLLECTIONS.researchPosts, sourceId: created.id, createdBy: data.createdBy || data.author }); await logAudit({ actorId: data.createdBy || data.author || "system", action: "research_submitted", collectionName: COLLECTIONS.researchPosts, documentId: created.id, after: { status: "submitted", visibility: "private", problemStatementId } }); if (data.createdBy || data.author) await createNotification({ userId: data.createdBy || data.author || "", type: "research_submission", title: "Research submitted", message: data.title, problemStatementId }); if (problemStatementId) { const problem = await getRecord<ProblemStatement>(COLLECTIONS.problemStatements, problemStatementId); const creator = problem?.createdBy || problem?.submittedBy; if (creator) await createNotification({ userId: creator, type: "research_submission", title: "Research linked", message: data.title, problemStatementId }); } await notifyAdmins("research_submission", "New Research", data.title, problemStatementId); return created; }
-export async function createCollaborationRequest(data: Omit<CollaborationRequest, "id" | "createdAt" | "updatedAt" | "status">) { const created = await createRecord<CollaborationRequest>(COLLECTIONS.collaborationRequests, { ...data, sourceType: data.sourceType || data.associatedType, sourceId: data.sourceId || data.associatedId, status: "submitted", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<CollaborationRequest, "id">>); await routeToAdminInbox({ type: "collaboration_request", title: data.title, description: data.description, sourceCollection: COLLECTIONS.collaborationRequests, sourceId: created.id, createdBy: data.createdBy }); await notifyAdmins("collaboration_request", "New Collaboration Request", data.title); if (data.createdBy) await createNotification({ userId: data.createdBy, type: "collaboration_request", title: "Collaboration requested", message: data.title }); return created; }
+export async function createResearchPost(
+  data: Omit<
+    ResearchPost,
+    "id" | "createdAt" | "updatedAt" | "status" | "visibility"
+  >,
+) {
+  const problemStatementId =
+    data.problemStatementId || data.associatedProblemId;
+  const payload = {
+    ...data,
+    problemStatementId,
+    associatedProblemId: problemStatementId,
+    documentLinks:
+      data.documentLinks ||
+      [
+        data.documentLink,
+        data.supportingFolderLink,
+        ...(data.externalReferences || []),
+      ].filter(Boolean),
+    status: "submitted",
+    visibility: "private",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const created = await createRecord<ResearchPost>(
+    COLLECTIONS.researchPosts,
+    payload as WithFieldValue<Omit<ResearchPost, "id">>,
+  );
+  await bumpStats("researchCount");
+  await routeToAdminInbox({
+    type: "research_submission",
+    title: data.title,
+    description: data.summary || data.abstract,
+    sourceCollection: COLLECTIONS.researchPosts,
+    sourceId: created.id,
+    createdBy: data.createdBy || data.author,
+  });
+  await logAudit({
+    actorId: data.createdBy || data.author || "system",
+    action: "research_submitted",
+    collectionName: COLLECTIONS.researchPosts,
+    documentId: created.id,
+    after: { status: "submitted", visibility: "private", problemStatementId },
+  });
+  if (data.createdBy || data.author)
+    await createNotification({
+      userId: data.createdBy || data.author || "",
+      type: "research_submission",
+      title: "Research submitted",
+      message: data.title,
+      problemStatementId,
+    });
+  if (problemStatementId) {
+    const problem = await getRecord<ProblemStatement>(
+      COLLECTIONS.problemStatements,
+      problemStatementId,
+    );
+    const creator = problem?.createdBy || problem?.submittedBy;
+    if (creator)
+      await createNotification({
+        userId: creator,
+        type: "research_submission",
+        title: "Research linked",
+        message: data.title,
+        problemStatementId,
+      });
+  }
+  await notifyAdmins(
+    "research_submission",
+    "New Research",
+    data.title,
+    problemStatementId,
+  );
+  return created;
+}
+export async function createCollaborationRequest(
+  data: Omit<CollaborationRequest, "id" | "createdAt" | "updatedAt" | "status">,
+) {
+  const created = await createRecord<CollaborationRequest>(
+    COLLECTIONS.collaborationRequests,
+    {
+      ...data,
+      sourceType: data.sourceType || data.associatedType,
+      sourceId: data.sourceId || data.associatedId,
+      status: "submitted",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<CollaborationRequest, "id">>,
+  );
+  await routeToAdminInbox({
+    type: "collaboration_request",
+    title: data.title,
+    description: data.description,
+    sourceCollection: COLLECTIONS.collaborationRequests,
+    sourceId: created.id,
+    createdBy: data.createdBy,
+  });
+  await notifyAdmins(
+    "collaboration_request",
+    "New Collaboration Request",
+    data.title,
+  );
+  if (data.createdBy)
+    await createNotification({
+      userId: data.createdBy,
+      type: "collaboration_request",
+      title: "Collaboration requested",
+      message: data.title,
+    });
+  return created;
+}
 
-export async function createCommunityPost(data: Omit<CommunityPost, "id" | "createdAt" | "updatedAt" | "upvotes" | "bookmarks" | "comments">) { const associatedType = data.associatedType || data.targetType; const associatedId = data.associatedId || data.targetId; const created = await createRecord<CommunityPost>(COLLECTIONS.communityPosts, { ...data, associatedType, associatedId, targetType: associatedType, targetId: associatedId, problemStatementId: associatedType === "problem_statement" ? associatedId : data.problemStatementId, upvotes: [], bookmarks: [], comments: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<CommunityPost, "id">>); await bumpStats("communityCount"); await logAudit({ actorId: data.createdBy || data.author || "system", action: "community_post_created", collectionName: COLLECTIONS.communityPosts, documentId: created.id }); return created; }
+export async function createCommunityPost(
+  data: Omit<
+    CommunityPost,
+    "id" | "createdAt" | "updatedAt" | "upvotes" | "bookmarks" | "comments"
+  >,
+) {
+  const associatedType = data.associatedType || data.targetType || "general";
+  const associatedId = data.associatedId || data.targetId || null;
+  const problemStatementId =
+    associatedType === "problem_statement"
+      ? associatedId
+      : data.problemStatementId || null;
+  const created = await createRecord<CommunityPost>(
+    COLLECTIONS.communityPosts,
+    {
+      ...data,
+      associatedType,
+      associatedId,
+      targetType: associatedType,
+      targetId: associatedId,
+      problemStatementId,
+      upvotes: [],
+      bookmarks: [],
+      comments: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<CommunityPost, "id">>,
+  );
+  await bumpStats("communityCount");
+  await logAudit({
+    actorId: data.createdBy || data.author || "system",
+    action: "community_post_created",
+    collectionName: COLLECTIONS.communityPosts,
+    documentId: created.id,
+  });
+  return created;
+}
+export async function addCommunityComment(
+  post: CommunityPost,
+  userId: string,
+  content: string,
+  parentCommentId?: string,
+) {
+  const comment = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    content,
+    createdBy: userId,
+    createdAt: new Date().toISOString(),
+    replies: [],
+  };
+  const comments = [...(post.comments || [])];
+  if (parentCommentId) {
+    const parent = comments.find((item) => item.id === parentCommentId);
+    if (!parent) throw new Error("Parent comment was not found.");
+    parent.replies = [...(parent.replies || []), comment];
+  } else {
+    comments.push(comment);
+  }
+  await updateRecord(COLLECTIONS.communityPosts, post.id, { comments });
+  await createNotification({
+    userId: post.createdBy || post.author,
+    type: "comment",
+    title: "New comment",
+    message: post.title,
+  });
+}
 
-export async function upvoteCommunityPost(postId: string, userId: string) { return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), { upvotes: arrayUnion(userId), updatedAt: serverTimestamp() }); }
-export async function bookmarkCommunityPost(postId: string, userId: string) { return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), { bookmarks: arrayUnion(userId), updatedAt: serverTimestamp() }); }
-export async function removeCommunityBookmark(postId: string, userId: string) { return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), { bookmarks: arrayRemove(userId), updatedAt: serverTimestamp() }); }
-export async function editOwnCommunityPost(post: CommunityPost, userId: string, patch: Pick<CommunityPost, "title" | "content" | "tags">) { if ((post.createdBy || post.author) !== userId) throw new Error("Only the post owner can edit this discussion."); await updateRecord(COLLECTIONS.communityPosts, post.id, patch as Record<string, unknown>); await logAudit({ actorId: userId, action: "community_post_edited", collectionName: COLLECTIONS.communityPosts, documentId: post.id }); }
-export async function deleteOwnCommunityPost(post: CommunityPost, userId: string) { if ((post.createdBy || post.author) !== userId) throw new Error("Only the post owner can delete this discussion."); await deleteRecord(COLLECTIONS.communityPosts, post.id); await logAudit({ actorId: userId, action: "community_post_deleted", collectionName: COLLECTIONS.communityPosts, documentId: post.id }); }
-export async function moderateCommunityPost(postId: string, reviewerId: string, status: "public" | "archived") { await updateRecord(COLLECTIONS.communityPosts, postId, { status, visibility: status === "archived" ? "private" : "public" }); await logAudit({ actorId: reviewerId, action: "community_moderated", collectionName: COLLECTIONS.communityPosts, documentId: postId, after: { status } }); }
-export async function createPrivateCollaborationGroup(data: Omit<PrivateCollaborationGroup, "id" | "createdAt" | "updatedAt" | "visibility">) { return createRecord<PrivateCollaborationGroup>(COLLECTIONS.privateCollaborationGroups, { ...data, visibility: "private", members: data.members || [], admins: data.admins || [data.createdBy].filter(Boolean), createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PrivateCollaborationGroup, "id">>); }
-export async function reviewResearchPost(post: ResearchPost, reviewerId: string, action: "approve" | "reject" | "request_changes" | "publish" | "archive") { const status = action === "approve" ? "under_review" : action === "publish" ? "public" : action === "archive" ? "archived" : action === "reject" ? "archived" : "draft"; const visibility = action === "publish" ? "public" : post.visibility; await updateRecord(COLLECTIONS.researchPosts, post.id, { status, visibility }); await logAudit({ actorId: reviewerId, action: `research_${action}`, collectionName: COLLECTIONS.researchPosts, documentId: post.id, before: { status: post.status, visibility: post.visibility }, after: { status, visibility } }); if (post.createdBy || post.author) await createNotification({ userId: post.createdBy || post.author || "", type: "research_submission", title: `Research ${action.replace("_", " ")}`, message: post.title, problemStatementId: post.problemStatementId || post.associatedProblemId }); }
-export async function closeCollaborationRequest(request: CollaborationRequest, reviewerId: string) { await updateRecord(COLLECTIONS.collaborationRequests, request.id, { status: "archived" }); await logAudit({ actorId: reviewerId, action: "collaboration_closed", collectionName: COLLECTIONS.collaborationRequests, documentId: request.id }); }
-export async function createCareerApplication(data: Omit<CareerApplication, "id" | "createdAt" | "status">) { const created = await createRecord<CareerApplication>(COLLECTIONS.careerApplications, { ...data, status: "submitted", createdAt: serverTimestamp() } as WithFieldValue<Omit<CareerApplication, "id">>); await routeToAdminInbox({ type: "career_application", title: data.name, description: data.email, sourceCollection: COLLECTIONS.careerApplications, sourceId: created.id, createdBy: data.email }); await notifyAdmins("career_application", "New Career Application", data.name); return created; }
-export async function createAdminApplication(data: Omit<AdminApplication, "id" | "createdAt" | "status">) { const created = await createRecord<AdminApplication>(COLLECTIONS.adminApplications, { ...data, status: "pending", createdAt: serverTimestamp() } as WithFieldValue<Omit<AdminApplication, "id">>); await upsertRecord(COLLECTIONS.users, data.userId, { role: "pending_admin", email: data.email, name: data.name, updatedAt: serverTimestamp() }); await routeToAdminInbox({ type: "role_request", title: `Admin application: ${data.name}`, description: data.email, sourceCollection: COLLECTIONS.adminApplications, sourceId: created.id, createdBy: data.userId }); await notifyAdmins("role_request", "New Admin Applicant", data.name); return created; }
-export async function reviewAdminApplication(application: AdminApplication, reviewerId: string, status: "approved" | "rejected") { await updateRecord(COLLECTIONS.adminApplications, application.id, { status, reviewedBy: reviewerId, reviewedAt: serverTimestamp() }); await updateRecord(COLLECTIONS.users, application.userId, { role: status === "approved" ? "admin" : "member" }); return logAudit({ actorId: reviewerId, action: `admin_application_${status}`, collectionName: COLLECTIONS.adminApplications, documentId: application.id }); }
-export async function addChallengeReview(data: Omit<ChallengeReview, "id" | "createdAt">) {
+export async function upvoteCommunityPost(postId: string, userId: string) {
+  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
+    upvotes: arrayUnion(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function bookmarkCommunityPost(postId: string, userId: string) {
+  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
+    bookmarks: arrayUnion(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function removeCommunityBookmark(postId: string, userId: string) {
+  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
+    bookmarks: arrayRemove(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function editOwnCommunityPost(
+  post: CommunityPost,
+  userId: string,
+  patch: Pick<CommunityPost, "title" | "content" | "tags">,
+) {
+  if ((post.createdBy || post.author) !== userId)
+    throw new Error("Only the post owner can edit this discussion.");
+  await updateRecord(
+    COLLECTIONS.communityPosts,
+    post.id,
+    patch as Record<string, unknown>,
+  );
+  await logAudit({
+    actorId: userId,
+    action: "community_post_edited",
+    collectionName: COLLECTIONS.communityPosts,
+    documentId: post.id,
+  });
+}
+export async function deleteOwnCommunityPost(
+  post: CommunityPost,
+  userId: string,
+) {
+  if ((post.createdBy || post.author) !== userId)
+    throw new Error("Only the post owner can delete this discussion.");
+  await deleteRecord(COLLECTIONS.communityPosts, post.id);
+  await logAudit({
+    actorId: userId,
+    action: "community_post_deleted",
+    collectionName: COLLECTIONS.communityPosts,
+    documentId: post.id,
+  });
+}
+export async function moderateCommunityPost(
+  postId: string,
+  reviewerId: string,
+  status: "public" | "archived",
+) {
+  await updateRecord(COLLECTIONS.communityPosts, postId, {
+    status,
+    visibility: status === "archived" ? "private" : "public",
+  });
+  await logAudit({
+    actorId: reviewerId,
+    action: "community_moderated",
+    collectionName: COLLECTIONS.communityPosts,
+    documentId: postId,
+    after: { status },
+  });
+}
+export async function createPrivateCollaborationGroup(
+  data: Omit<
+    PrivateCollaborationGroup,
+    "id" | "createdAt" | "updatedAt" | "visibility"
+  >,
+) {
+  return createRecord<PrivateCollaborationGroup>(
+    COLLECTIONS.privateCollaborationGroups,
+    {
+      ...data,
+      visibility: "private",
+      members: data.members || [],
+      admins: data.admins || [data.createdBy].filter(Boolean),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<PrivateCollaborationGroup, "id">>,
+  );
+}
+export async function reviewResearchPost(
+  post: ResearchPost,
+  reviewerId: string,
+  action: "approve" | "reject" | "request_changes" | "publish" | "archive",
+) {
+  const status =
+    action === "approve"
+      ? "under_review"
+      : action === "publish"
+        ? "public"
+        : action === "archive"
+          ? "archived"
+          : action === "reject"
+            ? "archived"
+            : "draft";
+  const visibility = action === "publish" ? "public" : post.visibility;
+  await updateRecord(COLLECTIONS.researchPosts, post.id, {
+    status,
+    visibility,
+  });
+  await logAudit({
+    actorId: reviewerId,
+    action: `research_${action}`,
+    collectionName: COLLECTIONS.researchPosts,
+    documentId: post.id,
+    before: { status: post.status, visibility: post.visibility },
+    after: { status, visibility },
+  });
+  if (post.createdBy || post.author)
+    await createNotification({
+      userId: post.createdBy || post.author || "",
+      type: "research_submission",
+      title: `Research ${action.replace("_", " ")}`,
+      message: post.title,
+      problemStatementId: post.problemStatementId || post.associatedProblemId,
+    });
+}
+export async function closeCollaborationRequest(
+  request: CollaborationRequest,
+  reviewerId: string,
+) {
+  await updateRecord(COLLECTIONS.collaborationRequests, request.id, {
+    status: "archived",
+  });
+  await logAudit({
+    actorId: reviewerId,
+    action: "collaboration_closed",
+    collectionName: COLLECTIONS.collaborationRequests,
+    documentId: request.id,
+  });
+}
+export async function createCareerApplication(
+  data: Omit<CareerApplication, "id" | "createdAt" | "status">,
+) {
+  const created = await createRecord<CareerApplication>(
+    COLLECTIONS.careerApplications,
+    {
+      ...data,
+      status: "submitted",
+      createdAt: serverTimestamp(),
+    } as WithFieldValue<Omit<CareerApplication, "id">>,
+  );
+  await routeToAdminInbox({
+    type: "career_application",
+    title: data.name,
+    description: data.email,
+    sourceCollection: COLLECTIONS.careerApplications,
+    sourceId: created.id,
+    createdBy: data.email,
+  });
+  await notifyAdmins("career_application", "New Career Application", data.name);
+  return created;
+}
+export async function createAdminApplication(
+  data: Omit<AdminApplication, "id" | "createdAt" | "status">,
+) {
+  const created = await createRecord<AdminApplication>(
+    COLLECTIONS.adminApplications,
+    {
+      ...data,
+      status: "pending",
+      createdAt: serverTimestamp(),
+    } as WithFieldValue<Omit<AdminApplication, "id">>,
+  );
+  await upsertRecord(COLLECTIONS.users, data.userId, {
+    role: "pending_admin",
+    email: data.email,
+    name: data.name,
+    updatedAt: serverTimestamp(),
+  });
+  await routeToAdminInbox({
+    type: "role_request",
+    title: `Admin application: ${data.name}`,
+    description: data.email,
+    sourceCollection: COLLECTIONS.adminApplications,
+    sourceId: created.id,
+    createdBy: data.userId,
+  });
+  await notifyAdmins("role_request", "New Admin Applicant", data.name);
+  return created;
+}
+export async function reviewAdminApplication(
+  application: AdminApplication,
+  reviewerId: string,
+  status: "approved" | "rejected",
+) {
+  await updateRecord(COLLECTIONS.adminApplications, application.id, {
+    status,
+    reviewedBy: reviewerId,
+    reviewedAt: serverTimestamp(),
+  });
+  await updateRecord(COLLECTIONS.users, application.userId, {
+    role: status === "approved" ? "admin" : "member",
+  });
+  return logAudit({
+    actorId: reviewerId,
+    action: `admin_application_${status}`,
+    collectionName: COLLECTIONS.adminApplications,
+    documentId: application.id,
+  });
+}
+export async function addChallengeReview(
+  data: Omit<ChallengeReview, "id" | "createdAt">,
+) {
   const problemStatementId = data.problemStatementId || data.challengeId || "";
-  const before = await getRecord<ProblemStatement>(COLLECTIONS.problemStatements, problemStatementId);
-  const review = await createRecord<ChallengeReview>(COLLECTIONS.problemReviews, { ...data, problemStatementId, createdAt: serverTimestamp() } as WithFieldValue<Omit<ChallengeReview, "id">>);
+  const before = await getRecord<ProblemStatement>(
+    COLLECTIONS.problemStatements,
+    problemStatementId,
+  );
+  const review = await createRecord<ChallengeReview>(
+    COLLECTIONS.problemReviews,
+    {
+      ...data,
+      problemStatementId,
+      createdAt: serverTimestamp(),
+    } as WithFieldValue<Omit<ChallengeReview, "id">>,
+  );
   const patch: Record<string, unknown> = {};
   if (data.statusTo) patch.status = data.statusTo;
   if (data.visibilityTo) patch.visibility = data.visibilityTo;
   if (data.assignedTo) patch.assignedReviewer = data.assignedTo;
-  if (data.comment || data.requestedInfo) patch.adminNotes = data.comment || data.requestedInfo;
-  if (Object.keys(patch).length) await updateRecord(COLLECTIONS.problemStatements, problemStatementId, patch);
-  await logAudit({ actorId: data.createdBy, action: data.action, collectionName: COLLECTIONS.problemStatements, documentId: problemStatementId, before: before ? { status: before.status, visibility: before.visibility, assignedReviewer: before.assignedReviewer } : null, after: patch });
+  if (data.comment || data.requestedInfo)
+    patch.adminNotes = data.comment || data.requestedInfo;
+  if (Object.keys(patch).length)
+    await updateRecord(
+      COLLECTIONS.problemStatements,
+      problemStatementId,
+      patch,
+    );
+  await logAudit({
+    actorId: data.createdBy,
+    action: data.action,
+    collectionName: COLLECTIONS.problemStatements,
+    documentId: problemStatementId,
+    before: before
+      ? {
+          status: before.status,
+          visibility: before.visibility,
+          assignedReviewer: before.assignedReviewer,
+        }
+      : null,
+    after: patch,
+  });
   const creator = before?.createdBy || before?.submittedBy;
-  if (creator && (data.statusTo || data.visibilityTo || data.requestedInfo)) await createNotification({ userId: creator, type: "problem_review", title: "Problem statement updated", message: data.requestedInfo || `Status: ${data.statusTo || before?.status}`, problemStatementId });
-  if (data.assignedTo) await createNotification({ userId: data.assignedTo, type: "problem_review", title: "Problem statement assigned", message: before?.title || problemStatementId, problemStatementId });
+  if (creator && (data.statusTo || data.visibilityTo || data.requestedInfo))
+    await createNotification({
+      userId: creator,
+      type: "problem_review",
+      title: "Problem statement updated",
+      message:
+        data.requestedInfo || `Status: ${data.statusTo || before?.status}`,
+      problemStatementId,
+    });
+  if (data.assignedTo)
+    await createNotification({
+      userId: data.assignedTo,
+      type: "problem_review",
+      title: "Problem statement assigned",
+      message: before?.title || problemStatementId,
+      problemStatementId,
+    });
   return review;
 }
-export async function createCompetition(data: Omit<Competition, "id" | "createdAt" | "updatedAt" | "status" | "visibility" | "registrations" | "teams" | "submissions">) { const payload = { ...data, sourceType: data.sourceType || (data.sourceResearchId ? "research" : data.sourceProblemId ? "problem_statement" : "general"), sourceId: data.sourceId || data.sourceResearchId || data.sourceProblemId || "general", status: "draft", visibility: "private", registrations: [], teams: [], submissions: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }; const created = await createRecord<Competition>(COLLECTIONS.competitions, payload as WithFieldValue<Omit<Competition, "id">>); await bumpStats("competitionCount"); await routeToAdminInbox({ type: "competition_request", title: data.title, description: data.description, sourceCollection: COLLECTIONS.competitions, sourceId: created.id, createdBy: data.createdBy }); await logAudit({ actorId: data.createdBy || "admin", action: "competition_created", collectionName: COLLECTIONS.competitions, documentId: created.id, after: { sourceType: payload.sourceType, sourceId: payload.sourceId } }); await notifyAdmins("competition_request", "Competition created", data.title); return created; }
-export async function convertProblemToCompetition(problem: ProblemStatement, createdBy: string) { const created = await createCompetition({ title: problem.title, description: problem.description || problem.problemStatement || problem.problemDescription || problem.summary || "", theme: problem.category, sourceType: "problem_statement", sourceId: problem.id, sourceProblemId: problem.id, rules: "Admin-defined rules pending.", prizes: "Admin-defined prizes pending.", createdBy }); await addChallengeReview({ problemStatementId: problem.id, action: "convert_to_competition", statusFrom: problem.status, statusTo: "competition", createdBy }); return created; }
-export async function convertResearchToCompetition(research: ResearchPost, createdBy: string) { const created = await createCompetition({ title: research.title, description: research.summary || research.abstract || "", theme: research.category, sourceType: "research", sourceId: research.id, sourceResearchId: research.id, rules: "Admin-defined rules pending.", prizes: "Admin-defined prizes pending.", createdBy }); await logAudit({ actorId: createdBy, action: "research_converted_to_competition", collectionName: COLLECTIONS.researchPosts, documentId: research.id, after: { competitionId: created.id } }); return created; }
-export async function updateCompetitionStatus(competition: Competition, reviewerId: string, status: Competition["status"], visibility: Competition["visibility"] = competition.visibility) { await updateRecord(COLLECTIONS.competitions, competition.id, { status, visibility }); await logAudit({ actorId: reviewerId, action: `competition_${status}`, collectionName: COLLECTIONS.competitions, documentId: competition.id, before: { status: competition.status, visibility: competition.visibility }, after: { status, visibility } }); const type: Notification["type"] = status === "completed" ? "competition_update" : "competition_request"; await notifyAdmins(type, `Competition ${status}`, competition.title); }
-export async function registerForCompetition(competition: Competition, userId: string) { await updateDoc(doc(db, COLLECTIONS.competitions, competition.id), { registrations: arrayUnion(userId), updatedAt: serverTimestamp() }); await createNotification({ userId, type: "competition_update", title: "Registration approved", message: competition.title }); await logAudit({ actorId: userId, action: "competition_registered", collectionName: COLLECTIONS.competitions, documentId: competition.id }); }
-export async function createCompetitionTeam(data: Omit<CompetitionTeam, "id" | "createdAt" | "updatedAt">) { const team = await createRecord<CompetitionTeam>(COLLECTIONS.competitionTeams, { ...data, members: Array.from(new Set([data.leader, ...(data.members || [])])), createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<CompetitionTeam, "id">>); await updateDoc(doc(db, COLLECTIONS.competitions, data.competitionId), { teams: arrayUnion(team.id), updatedAt: serverTimestamp() }); return team; }
-export async function joinCompetitionTeam(team: CompetitionTeam, userId: string) { await updateDoc(doc(db, COLLECTIONS.competitionTeams, team.id), { members: arrayUnion(userId), updatedAt: serverTimestamp() }); }
-export async function leaveCompetitionTeam(team: CompetitionTeam, userId: string) { if (team.leader === userId) throw new Error("Team leader cannot leave without transferring leadership."); await updateDoc(doc(db, COLLECTIONS.competitionTeams, team.id), { members: arrayRemove(userId), updatedAt: serverTimestamp() }); }
-export async function submitCompetitionSolution(data: Omit<CompetitionSubmission, "id" | "submittedAt">) { const created = await createRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, { ...data, solutionLinks: data.solutionLinks || [], supportingLinks: data.supportingLinks || [], submittedAt: serverTimestamp() } as WithFieldValue<Omit<CompetitionSubmission, "id">>); await updateDoc(doc(db, COLLECTIONS.competitions, data.competitionId), { submissions: arrayUnion(created.id), updatedAt: serverTimestamp() }); await routeToAdminInbox({ type: "competition_request", title: data.title, description: "Competition submission received", sourceCollection: COLLECTIONS.competitionSubmissions, sourceId: created.id, createdBy: data.submittedBy }); await notifyAdmins("competition_submission", "Submission received", data.title); await createNotification({ userId: data.submittedBy, type: "competition_submission", title: "Submission received", message: data.title }); return created; }
-export async function scoreCompetitionSubmission(submission: CompetitionSubmission, reviewerId: string, score: number, rank?: number, reviewNotes?: string, winner = false) { await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { score, rank, reviewNotes, winner, evaluatedBy: reviewerId, evaluatedAt: serverTimestamp() }); if (winner) await updateRecord(COLLECTIONS.competitions, submission.competitionId, { winnerSubmissionId: submission.id, winningTeamId: submission.teamId, status: "completed" }); await logAudit({ actorId: reviewerId, action: winner ? "competition_winner_selected" : "competition_submission_scored", collectionName: COLLECTIONS.competitionSubmissions, documentId: submission.id, after: { score, rank, winner } }); }
-export async function createKnowledgeAsset(data: Omit<KnowledgeAsset, "id" | "createdAt" | "updatedAt" | "status" | "visibility" | "description"> & { description?: string }) { const created = await createRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, { ...data, description: data.description || data.summary || "", references: data.references || [], status: "draft", visibility: "private", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<KnowledgeAsset, "id">>); await bumpStats("knowledgeCount"); await routeToAdminInbox({ type: "knowledge_submission", title: data.title, description: data.summary || data.description, sourceCollection: COLLECTIONS.knowledgeAssets, sourceId: created.id, createdBy: data.createdBy }); return created; }
-export async function publishKnowledgeAsset(asset: KnowledgeAsset, reviewerId: string) { await updateRecord(COLLECTIONS.knowledgeAssets, asset.id, { status: "published", visibility: "public" }); await logAudit({ actorId: reviewerId, action: "knowledge_published", collectionName: COLLECTIONS.knowledgeAssets, documentId: asset.id, before: { status: asset.status, visibility: asset.visibility }, after: { status: "published", visibility: "public" } }); await notifyAdmins("knowledge_update", "Knowledge asset published", asset.title); }
-export async function createKnowledgeFromWinningSolution(competition: Competition, submission: CompetitionSubmission, reviewerId: string) { return createKnowledgeAsset({ title: submission.title, summary: `Winning solution for ${competition.title}`, content: submission.description, tags: [competition.theme || "competition"].filter(Boolean), sourceType: "competition", sourceId: competition.id, sourceCompetitionId: competition.id, references: [...(submission.solutionLinks || []), ...(submission.supportingLinks || [])], createdBy: reviewerId }); }
-export async function globalSearch(term: string): Promise<SearchResult[]> { const needle = term.toLowerCase(); const [problems, orgs, research, knowledge, community, competitions] = await Promise.all([getProblemStatements(50), getOrganizations(50), getResearchPosts(), getKnowledgeAssets(), getCommunityPosts(), getCompetitions()]); return [ ...problems.map((x) => ({ id: x.id, type: "Problem Statement", title: x.title, description: x.description, href: `/problem-statements/${x.id}`, tags: [x.category || ""] })), ...orgs.map((x) => ({ id: x.id, type: "Organization", title: x.name, description: x.description, href: `/organizations/${x.id}`, tags: [x.industry || ""] })), ...research.map((x) => ({ id: x.id, type: "Research", title: x.title, description: x.summary, href: "/research", tags: x.tags })), ...knowledge.map((x) => ({ id: x.id, type: "Knowledge", title: x.title, description: x.description, href: "/knowledge", tags: x.tags })), ...community.map((x) => ({ id: x.id, type: "Community", title: x.title, description: x.content, href: "/community", tags: x.tags })), ...competitions.map((x) => ({ id: x.id, type: "Competition", title: x.title, description: x.description, href: "/competitions", tags: [x.theme || ""] })) ].filter((x) => [x.title, x.description, ...(x.tags || [])].join(" ").toLowerCase().includes(needle)); }
+export async function createCompetition(
+  data: Omit<
+    Competition,
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "status"
+    | "visibility"
+    | "registrations"
+    | "teams"
+    | "submissions"
+  >,
+) {
+  const payload = {
+    ...data,
+    sourceType:
+      data.sourceType ||
+      (data.sourceResearchId
+        ? "research"
+        : data.sourceProblemId
+          ? "problem_statement"
+          : "general"),
+    sourceId:
+      data.sourceId ||
+      data.sourceResearchId ||
+      data.sourceProblemId ||
+      "general",
+    status: "draft",
+    visibility: "private",
+    registrations: [],
+    teams: [],
+    submissions: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const created = await createRecord<Competition>(
+    COLLECTIONS.competitions,
+    payload as WithFieldValue<Omit<Competition, "id">>,
+  );
+  await bumpStats("competitionCount");
+  await routeToAdminInbox({
+    type: "competition_request",
+    title: data.title,
+    description: data.description,
+    sourceCollection: COLLECTIONS.competitions,
+    sourceId: created.id,
+    createdBy: data.createdBy,
+  });
+  await logAudit({
+    actorId: data.createdBy || "admin",
+    action: "competition_created",
+    collectionName: COLLECTIONS.competitions,
+    documentId: created.id,
+    after: { sourceType: payload.sourceType, sourceId: payload.sourceId },
+  });
+  await notifyAdmins("competition_request", "Competition created", data.title);
+  return created;
+}
+export async function convertProblemToCompetition(
+  problem: ProblemStatement,
+  createdBy: string,
+) {
+  const created = await createCompetition({
+    title: problem.title,
+    description:
+      problem.description ||
+      problem.problemStatement ||
+      problem.problemDescription ||
+      problem.summary ||
+      "",
+    theme: problem.category,
+    sourceType: "problem_statement",
+    sourceId: problem.id,
+    sourceProblemId: problem.id,
+    rules: "Admin-defined rules pending.",
+    prizes: "Admin-defined prizes pending.",
+    createdBy,
+  });
+  await addChallengeReview({
+    problemStatementId: problem.id,
+    action: "convert_to_competition",
+    statusFrom: problem.status,
+    statusTo: "competition",
+    createdBy,
+  });
+  return created;
+}
+export async function convertResearchToCompetition(
+  research: ResearchPost,
+  createdBy: string,
+) {
+  const created = await createCompetition({
+    title: research.title,
+    description: research.summary || research.abstract || "",
+    theme: research.category,
+    sourceType: "research",
+    sourceId: research.id,
+    sourceResearchId: research.id,
+    rules: "Admin-defined rules pending.",
+    prizes: "Admin-defined prizes pending.",
+    createdBy,
+  });
+  await logAudit({
+    actorId: createdBy,
+    action: "research_converted_to_competition",
+    collectionName: COLLECTIONS.researchPosts,
+    documentId: research.id,
+    after: { competitionId: created.id },
+  });
+  return created;
+}
+export async function updateCompetitionStatus(
+  competition: Competition,
+  reviewerId: string,
+  status: Competition["status"],
+  visibility: Competition["visibility"] = competition.visibility,
+) {
+  await updateRecord(COLLECTIONS.competitions, competition.id, {
+    status,
+    visibility,
+  });
+  await logAudit({
+    actorId: reviewerId,
+    action: `competition_${status}`,
+    collectionName: COLLECTIONS.competitions,
+    documentId: competition.id,
+    before: { status: competition.status, visibility: competition.visibility },
+    after: { status, visibility },
+  });
+  const type: Notification["type"] =
+    status === "completed" ? "competition_update" : "competition_request";
+  await notifyAdmins(type, `Competition ${status}`, competition.title);
+}
+export async function registerForCompetition(
+  competition: Competition,
+  userId: string,
+) {
+  await updateDoc(doc(db, COLLECTIONS.competitions, competition.id), {
+    registrations: arrayUnion(userId),
+    updatedAt: serverTimestamp(),
+  });
+  await createNotification({
+    userId,
+    type: "competition_update",
+    title: "Registration approved",
+    message: competition.title,
+  });
+  await logAudit({
+    actorId: userId,
+    action: "competition_registered",
+    collectionName: COLLECTIONS.competitions,
+    documentId: competition.id,
+  });
+}
+export async function createCompetitionTeam(
+  data: Omit<CompetitionTeam, "id" | "createdAt" | "updatedAt">,
+) {
+  const team = await createRecord<CompetitionTeam>(
+    COLLECTIONS.competitionTeams,
+    {
+      ...data,
+      members: Array.from(new Set([data.leader, ...(data.members || [])])),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<CompetitionTeam, "id">>,
+  );
+  await updateDoc(doc(db, COLLECTIONS.competitions, data.competitionId), {
+    teams: arrayUnion(team.id),
+    updatedAt: serverTimestamp(),
+  });
+  return team;
+}
+export async function joinCompetitionTeam(
+  team: CompetitionTeam,
+  userId: string,
+) {
+  await updateDoc(doc(db, COLLECTIONS.competitionTeams, team.id), {
+    members: arrayUnion(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function leaveCompetitionTeam(
+  team: CompetitionTeam,
+  userId: string,
+) {
+  if (team.leader === userId)
+    throw new Error(
+      "Team leader cannot leave without transferring leadership.",
+    );
+  await updateDoc(doc(db, COLLECTIONS.competitionTeams, team.id), {
+    members: arrayRemove(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+export async function submitCompetitionSolution(
+  data: Omit<CompetitionSubmission, "id" | "submittedAt">,
+) {
+  const created = await createRecord<CompetitionSubmission>(
+    COLLECTIONS.competitionSubmissions,
+    {
+      ...data,
+      solutionLinks: data.solutionLinks || [],
+      supportingLinks: data.supportingLinks || [],
+      submittedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<CompetitionSubmission, "id">>,
+  );
+  await updateDoc(doc(db, COLLECTIONS.competitions, data.competitionId), {
+    submissions: arrayUnion(created.id),
+    updatedAt: serverTimestamp(),
+  });
+  await routeToAdminInbox({
+    type: "competition_request",
+    title: data.title,
+    description: "Competition submission received",
+    sourceCollection: COLLECTIONS.competitionSubmissions,
+    sourceId: created.id,
+    createdBy: data.submittedBy,
+  });
+  await notifyAdmins(
+    "competition_submission",
+    "Submission received",
+    data.title,
+  );
+  await createNotification({
+    userId: data.submittedBy,
+    type: "competition_submission",
+    title: "Submission received",
+    message: data.title,
+  });
+  return created;
+}
+export async function scoreCompetitionSubmission(
+  submission: CompetitionSubmission,
+  reviewerId: string,
+  score: number,
+  rank?: number,
+  reviewNotes?: string,
+  winner = false,
+) {
+  await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, {
+    score,
+    rank,
+    reviewNotes,
+    winner,
+    evaluatedBy: reviewerId,
+    evaluatedAt: serverTimestamp(),
+  });
+  if (winner)
+    await updateRecord(COLLECTIONS.competitions, submission.competitionId, {
+      winnerSubmissionId: submission.id,
+      winningTeamId: submission.teamId,
+      status: "completed",
+    });
+  await logAudit({
+    actorId: reviewerId,
+    action: winner
+      ? "competition_winner_selected"
+      : "competition_submission_scored",
+    collectionName: COLLECTIONS.competitionSubmissions,
+    documentId: submission.id,
+    after: { score, rank, winner },
+  });
+}
+export async function createKnowledgeAsset(
+  data: Omit<
+    KnowledgeAsset,
+    "id" | "createdAt" | "updatedAt" | "status" | "visibility" | "description"
+  > & { description?: string },
+) {
+  const created = await createRecord<KnowledgeAsset>(
+    COLLECTIONS.knowledgeAssets,
+    {
+      ...data,
+      description: data.description || data.summary || "",
+      references: data.references || [],
+      status: "draft",
+      visibility: "private",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    } as WithFieldValue<Omit<KnowledgeAsset, "id">>,
+  );
+  await bumpStats("knowledgeCount");
+  await routeToAdminInbox({
+    type: "knowledge_submission",
+    title: data.title,
+    description: data.summary || data.description,
+    sourceCollection: COLLECTIONS.knowledgeAssets,
+    sourceId: created.id,
+    createdBy: data.createdBy,
+  });
+  return created;
+}
+export async function publishKnowledgeAsset(
+  asset: KnowledgeAsset,
+  reviewerId: string,
+) {
+  await updateRecord(COLLECTIONS.knowledgeAssets, asset.id, {
+    status: "published",
+    visibility: "public",
+  });
+  await logAudit({
+    actorId: reviewerId,
+    action: "knowledge_published",
+    collectionName: COLLECTIONS.knowledgeAssets,
+    documentId: asset.id,
+    before: { status: asset.status, visibility: asset.visibility },
+    after: { status: "published", visibility: "public" },
+  });
+  await notifyAdmins(
+    "knowledge_update",
+    "Knowledge asset published",
+    asset.title,
+  );
+}
+export async function createKnowledgeFromWinningSolution(
+  competition: Competition,
+  submission: CompetitionSubmission,
+  reviewerId: string,
+) {
+  return createKnowledgeAsset({
+    title: submission.title,
+    summary: `Winning solution for ${competition.title}`,
+    content: submission.description,
+    tags: [competition.theme || "competition"].filter(Boolean),
+    sourceType: "competition",
+    sourceId: competition.id,
+    sourceCompetitionId: competition.id,
+    references: [
+      ...(submission.solutionLinks || []),
+      ...(submission.supportingLinks || []),
+    ],
+    createdBy: reviewerId,
+  });
+}
+export async function globalSearch(term: string): Promise<SearchResult[]> {
+  const needle = term.toLowerCase();
+  const [problems, orgs, research, knowledge, community, competitions] =
+    await Promise.all([
+      getProblemStatements(50),
+      getOrganizations(50),
+      getResearchPosts(),
+      getKnowledgeAssets(),
+      getCommunityPosts(),
+      getCompetitions(),
+    ]);
+  return [
+    ...problems.map((x) => ({
+      id: x.id,
+      type: "Problem Statement",
+      title: x.title,
+      description: x.description,
+      href: `/problem-statements/${x.id}`,
+      tags: [x.category || ""],
+    })),
+    ...orgs.map((x) => ({
+      id: x.id,
+      type: "Organization",
+      title: x.name,
+      description: x.description,
+      href: `/organizations/${x.id}`,
+      tags: [x.industry || ""],
+    })),
+    ...research.map((x) => ({
+      id: x.id,
+      type: "Research",
+      title: x.title,
+      description: x.summary,
+      href: "/research",
+      tags: x.tags,
+    })),
+    ...knowledge.map((x) => ({
+      id: x.id,
+      type: "Knowledge",
+      title: x.title,
+      description: x.description,
+      href: "/knowledge",
+      tags: x.tags,
+    })),
+    ...community.map((x) => ({
+      id: x.id,
+      type: "Community",
+      title: x.title,
+      description: x.content,
+      href: "/community",
+      tags: x.tags,
+    })),
+    ...competitions.map((x) => ({
+      id: x.id,
+      type: "Competition",
+      title: x.title,
+      description: x.description,
+      href: "/competitions",
+      tags: [x.theme || ""],
+    })),
+  ].filter((x) =>
+    [x.title, x.description, ...(x.tags || [])]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle),
+  );
+}
 
-export const getProblemStatementById = cache(async (id: string) => getRecord<ProblemStatement>(COLLECTIONS.problemStatements, id));
-export const getProblemStatementsByCreator = cache(async (userId: string) => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("createdBy", "==", userId), limit(100)]).catch(() => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("submittedBy", "==", userId), limit(100)])));
-export const getProblemReviews = cache(async (problemStatementId: string) => listCollection<ChallengeReview>(COLLECTIONS.problemReviews, [where("problemStatementId", "==", problemStatementId), limit(100)]));
-export const getResearchByProblem = cache(async (problemStatementId: string) => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [where("problemStatementId", "==", problemStatementId), limit(50)]));
-export const getCommunityByProblem = cache(async (problemStatementId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("problemStatementId", "==", problemStatementId), limit(50)]));
-export const getCompetitionsByProblem = cache(async (problemStatementId: string) => listCollection<Competition>(COLLECTIONS.competitions, [where("sourceProblemId", "==", problemStatementId), limit(50)]));
-export const getCompetitionById = cache(async (id: string) => getRecord<Competition>(COLLECTIONS.competitions, id));
-export const getCompetitionTeams = cache(async (competitionId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("competitionId", "==", competitionId), limit(100)]));
-export const getCompetitionTeamsByUser = cache(async (userId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("members", "array-contains", userId), limit(100)]));
-export const getCompetitionSubmissions = cache(async (competitionId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("competitionId", "==", competitionId), limit(100)]));
-export const getKnowledgeAssetById = cache(async (id: string) => getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id));
-export const getKnowledgeBySource = cache(async (sourceType: string, sourceId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("sourceType", "==", sourceType), where("sourceId", "==", sourceId), limit(50)]));
-export const getKnowledgeByProblem = cache(async (problemStatementId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("linkedProblemStatementId", "==", problemStatementId), limit(50)]));
+export const getProblemStatementById = cache(async (id: string) =>
+  getRecord<ProblemStatement>(COLLECTIONS.problemStatements, id),
+);
+export const getProblemStatementsByCreator = cache(async (userId: string) =>
+  listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
+    where("createdBy", "==", userId),
+    limit(100),
+  ]).catch(() =>
+    listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
+      where("submittedBy", "==", userId),
+      limit(100),
+    ]),
+  ),
+);
+export const getProblemReviews = cache(async (problemStatementId: string) =>
+  listCollection<ChallengeReview>(COLLECTIONS.problemReviews, [
+    where("problemStatementId", "==", problemStatementId),
+    limit(100),
+  ]),
+);
+export const getResearchByProblem = cache(async (problemStatementId: string) =>
+  listCollection<ResearchPost>(COLLECTIONS.researchPosts, [
+    where("problemStatementId", "==", problemStatementId),
+    limit(50),
+  ]),
+);
+export const getCommunityByProblem = cache(
+  async (problemStatementId: string) => {
+    traceRepositoryRead(
+      COLLECTIONS.communityPosts,
+      [
+        "visibility == public",
+        `problemStatementId == ${problemStatementId} (client)`,
+      ],
+      [],
+    );
+    const rows = await listCollection<CommunityPost>(
+      COLLECTIONS.communityPosts,
+      [where("visibility", "==", "public"), limit(100)],
+    );
+    return rows
+      .filter(
+        (post) =>
+          post.problemStatementId === problemStatementId ||
+          (post.associatedType === "problem_statement" &&
+            post.associatedId === problemStatementId),
+      )
+      .slice(0, 50);
+  },
+);
+export const getCompetitionsByProblem = cache(
+  async (problemStatementId: string) =>
+    listCollection<Competition>(COLLECTIONS.competitions, [
+      where("sourceProblemId", "==", problemStatementId),
+      limit(50),
+    ]),
+);
+export const getCompetitionById = cache(async (id: string) =>
+  getRecord<Competition>(COLLECTIONS.competitions, id),
+);
+export const getCompetitionTeams = cache(async (competitionId: string) =>
+  listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [
+    where("competitionId", "==", competitionId),
+    limit(100),
+  ]),
+);
+export const getCompetitionTeamsByUser = cache(async (userId: string) =>
+  listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [
+    where("members", "array-contains", userId),
+    limit(100),
+  ]),
+);
+export const getCompetitionSubmissions = cache(async (competitionId: string) =>
+  listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [
+    where("competitionId", "==", competitionId),
+    limit(100),
+  ]),
+);
+export const getKnowledgeAssetById = cache(async (id: string) =>
+  getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id),
+);
+export const getKnowledgeBySource = cache(
+  async (sourceType: string, sourceId: string) =>
+    listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [
+      where("sourceType", "==", sourceType),
+      where("sourceId", "==", sourceId),
+      limit(50),
+    ]),
+);
+export const getKnowledgeByProblem = cache(async (problemStatementId: string) =>
+  listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [
+    where("linkedProblemStatementId", "==", problemStatementId),
+    limit(50),
+  ]),
+);
+export const getCommunityPostsByAssociation = cache(
+  async (associatedType: DiscussionTargetType, associatedId: string) => {
+    traceRepositoryRead(
+      COLLECTIONS.communityPosts,
+      [
+        "visibility == public",
+        `associatedType == ${associatedType} (client)`,
+        `associatedId == ${associatedId} (client)`,
+      ],
+      [],
+    );
+    const rows = await listCollection<CommunityPost>(
+      COLLECTIONS.communityPosts,
+      [where("visibility", "==", "public"), limit(100)],
+    );
+    return rows
+      .filter(
+        (post) =>
+          post.associatedType === associatedType &&
+          post.associatedId === associatedId,
+      )
+      .slice(0, 50);
+  },
+);
 
-export const getResearchByCreator = cache(async (userId: string) => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [where("createdBy", "==", userId), limit(100)]));
-export const getCollaborationRequestsByCreator = cache(async (userId: string) => listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [where("createdBy", "==", userId), limit(100)]));
-export const getCommunityPostsByCreator = cache(async (userId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("createdBy", "==", userId), limit(100)]));
-export const getBookmarkedCommunityPosts = cache(async (userId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("bookmarks", "array-contains", userId), limit(100)]));
-export const getCollaborationRequests = cache(async () => listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [orderBy("createdAt", "desc"), limit(100)]));
+export const getResearchByCreator = cache(async (userId: string) =>
+  listCollection<ResearchPost>(COLLECTIONS.researchPosts, [
+    where("createdBy", "==", userId),
+    limit(100),
+  ]),
+);
+export const getCollaborationRequestsByCreator = cache(async (userId: string) =>
+  listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [
+    where("createdBy", "==", userId),
+    limit(100),
+  ]),
+);
+export const getCommunityPostsByCreator = cache(async (userId: string) =>
+  listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
+    where("createdBy", "==", userId),
+    limit(100),
+  ]),
+);
+export const getBookmarkedCommunityPosts = cache(async (userId: string) =>
+  listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
+    where("bookmarks", "array-contains", userId),
+    limit(100),
+  ]),
+);
+export const getCollaborationRequests = cache(async () =>
+  listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]),
+);
 
 export async function getSystemHealthCounts() {
   const entries = [
-    ["users", COLLECTIONS.users], ["problems", COLLECTIONS.problemStatements], ["research", COLLECTIONS.researchPosts], ["competitions", COLLECTIONS.competitions], ["knowledgeAssets", COLLECTIONS.knowledgeAssets], ["notifications", COLLECTIONS.notifications], ["inboxItems", COLLECTIONS.adminInbox],
+    ["users", COLLECTIONS.users],
+    ["problems", COLLECTIONS.problemStatements],
+    ["research", COLLECTIONS.researchPosts],
+    ["competitions", COLLECTIONS.competitions],
+    ["knowledgeAssets", COLLECTIONS.knowledgeAssets],
+    ["notifications", COLLECTIONS.notifications],
+    ["inboxItems", COLLECTIONS.adminInbox],
   ] as const;
-  const results = await Promise.all(entries.map(async ([key, collectionName]) => {
-    try { const snap = await getCountFromServer(ref(collectionName)); return [key, snap.data().count] as const; }
-    catch { return [key, null] as const; }
-  }));
-  return Object.fromEntries(results) as Record<(typeof entries)[number][0], number | null>;
+  const results = await Promise.all(
+    entries.map(async ([key, collectionName]) => {
+      try {
+        const snap = await getCountFromServer(ref(collectionName));
+        return [key, snap.data().count] as const;
+      } catch {
+        return [key, null] as const;
+      }
+    }),
+  );
+  return Object.fromEntries(results) as Record<
+    (typeof entries)[number][0],
+    number | null
+  >;
 }

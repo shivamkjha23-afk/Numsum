@@ -1,13 +1,110 @@
 import { notFound } from "next/navigation";
+import { CommunityThread } from "@/components/community-thread";
 import { LinkedActions } from "@/components/linked-actions";
 import { Card } from "@/components/ui";
-import { getCommunityByProblem, getCompetitionsByProblem, getKnowledgeByProblem, getProblemReviews, getProblemStatementById, getResearchByProblem } from "@/lib/repositories/firestore";
+import {
+  getCommunityByProblem,
+  getCompetitionsByProblem,
+  getKnowledgeByProblem,
+  getProblemReviews,
+  getProblemStatementById,
+  getResearchByProblem,
+} from "@/lib/repositories/firestore";
 
-export default async function ProblemStatementDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProblemStatementDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const [problem, reviews, research, discussions, competitions, knowledge] = await Promise.all([getProblemStatementById(id), getProblemReviews(id), getResearchByProblem(id), getCommunityByProblem(id), getCompetitionsByProblem(id), getKnowledgeByProblem(id)]);
+  const [problem, reviews, research, discussions, competitions, knowledge] =
+    await Promise.all([
+      getProblemStatementById(id),
+      getProblemReviews(id),
+      getResearchByProblem(id),
+      getCommunityByProblem(id),
+      getCompetitionsByProblem(id),
+      getKnowledgeByProblem(id),
+    ]);
   if (!problem) notFound();
-  const questionnaire = problem.questionnaireResponses || problem.questionnaire || {};
-  const related = [["Associated Research", research], ["Associated Discussions", discussions], ["Associated Competitions", competitions], ["Associated Knowledge Assets", knowledge], ["Review Actions", reviews]] as const;
-  return <main className="min-h-screen bg-navy px-6 py-10"><div className="mx-auto max-w-5xl"><p className="text-sm uppercase tracking-[.35em] text-blue-300">Problem Statement</p><h1 className="mt-3 font-display text-5xl">{problem.title}</h1><p className="mt-3 text-white/60">{[problem.category, problem.status, problem.visibility].filter(Boolean).join(" · ")}</p><LinkedActions associatedType="problem_statement" associatedId={problem.id} title={problem.title} /><div className="mt-8 grid gap-4"><Card><h2 className="font-display text-2xl">Description</h2><p className="mt-3 whitespace-pre-wrap text-white/70">{problem.problemDescription || problem.problemStatement || problem.description || problem.summary || "No description provided."}</p></Card><Card><h2 className="font-display text-2xl">Questionnaire Data</h2><pre className="mt-3 overflow-auto rounded-xl bg-black/30 p-4 text-xs text-white/70">{JSON.stringify(questionnaire, null, 2)}</pre></Card><Card><h2 className="font-display text-2xl">Links</h2>{problem.attachments?.length ? <ul className="mt-3 grid gap-2 text-blue-200">{problem.attachments.map((link) => <li key={link}><a href={link} target="_blank" rel="noreferrer">{link}</a></li>)}</ul> : <p className="mt-3 text-white/60">No supporting links provided.</p>}</Card><div className="grid gap-4 md:grid-cols-2">{related.map(([title, rows]) => <Card key={title}><h2 className="font-display text-2xl">{title}</h2>{rows.length ? <pre className="mt-3 overflow-auto text-xs text-white/70">{JSON.stringify(rows, null, 2)}</pre> : <p className="mt-3 text-white/60">Nothing linked yet.</p>}</Card>)}</div></div></div></main>;
+  const questionnaire =
+    problem.questionnaireResponses || problem.questionnaire || {};
+  const related = [
+    ["Associated Research", research],
+    ["Associated Discussions", discussions],
+    ["Associated Competitions", competitions],
+    ["Associated Knowledge Assets", knowledge],
+    ["Review Actions", reviews],
+  ] as const;
+  return (
+    <main className="min-h-screen bg-navy px-6 py-10">
+      <div className="mx-auto max-w-5xl">
+        <p className="text-sm uppercase tracking-[.35em] text-blue-300">
+          Problem Statement
+        </p>
+        <h1 className="mt-3 font-display text-5xl">{problem.title}</h1>
+        <p className="mt-3 text-white/60">
+          {[problem.category, problem.status, problem.visibility]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        <LinkedActions
+          associatedType="problem_statement"
+          associatedId={problem.id}
+          title={problem.title}
+        />
+        <div className="mt-8 grid gap-4">
+          <Card>
+            <h2 className="font-display text-2xl">Description</h2>
+            <p className="mt-3 whitespace-pre-wrap text-white/70">
+              {problem.problemDescription ||
+                problem.problemStatement ||
+                problem.description ||
+                problem.summary ||
+                "No description provided."}
+            </p>
+          </Card>
+          <Card>
+            <h2 className="font-display text-2xl">Questionnaire Data</h2>
+            <pre className="mt-3 overflow-auto rounded-xl bg-black/30 p-4 text-xs text-white/70">
+              {JSON.stringify(questionnaire, null, 2)}
+            </pre>
+          </Card>
+          <Card>
+            <h2 className="font-display text-2xl">Links</h2>
+            {problem.attachments?.length ? (
+              <ul className="mt-3 grid gap-2 text-blue-200">
+                {problem.attachments.map((link) => (
+                  <li key={link}>
+                    <a href={link} target="_blank" rel="noreferrer">
+                      {link}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-white/60">
+                No supporting links provided.
+              </p>
+            )}
+          </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            {related.map(([title, rows]) => (
+              <Card key={title}>
+                <h2 className="font-display text-2xl">{title}</h2>
+                {rows.length ? (
+                  <pre className="mt-3 overflow-auto text-xs text-white/70">
+                    {JSON.stringify(rows, null, 2)}
+                  </pre>
+                ) : (
+                  <p className="mt-3 text-white/60">Nothing linked yet.</p>
+                )}
+              </Card>
+            ))}
+          </div>
+          <CommunityThread posts={discussions} />
+        </div>
+      </div>
+    </main>
+  );
 }
