@@ -50,10 +50,13 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<UserProfile
     return { id: user.uid, ...profile } as UserProfile;
   }
   const patch: Record<string, unknown> = { uid: user.uid, ...base };
+  if (!existing.createdAt) patch.createdAt = serverTimestamp();
+  if (!existing.status) patch.status = "active";
+  if (!existing.role) patch.role = "member";
   if (isBootstrapAdmin && existing.role !== "admin" && existing.role !== "super_admin") patch.role = "admin";
   console.info("[PROFILE] Updating user profile", { uid: user.uid, role: patch.role || existing.role });
   await upsertRecord(COLLECTIONS.users, user.uid, patch);
-  return { ...existing, email: base.email, displayName: base.displayName, name: base.name, role: (patch.role as UserProfile["role"]) || existing.role } as UserProfile;
+  return { ...existing, uid: user.uid, email: base.email, displayName: base.displayName, name: base.name, status: (patch.status as string) || existing.status || "active", role: (patch.role as UserProfile["role"]) || existing.role || "member" } as UserProfile;
 }
 
 export async function notifyAdmins(type: Notification["type"], title: string, message: string, problemStatementId?: string) { return createNotification({ userId: "admins", type, title, message, problemStatementId }); }
@@ -70,7 +73,7 @@ export const getChallengesByOrganization = getProblemStatementsByOrganization;
 export const getOrganizations = cache(async (maxItems = 50): Promise<Organization[]> => listCollection<Organization>(COLLECTIONS.organizations, [orderBy("name", "asc"), limit(maxItems)]));
 export const getTeamMembers = cache(async (): Promise<TeamMember[]> => listCollection<TeamMember>(COLLECTIONS.teamMembers, [orderBy("displayOrder", "asc"), limit(100)]).catch(() => listCollection<TeamMember>(COLLECTIONS.teamMembers, [limit(100)])));
 export const getUsers = cache(async (maxItems = 100): Promise<UserProfile[]> => listCollection<UserProfile>(COLLECTIONS.users, [limit(maxItems)]));
-export const getPlatformStats = cache(async (): Promise<SystemStats | null> => getRecord<SystemStats>(COLLECTIONS.systemStats, "platform"));
+export const getPlatformStats = cache(async (): Promise<SystemStats | null> => getRecord<SystemStats>(COLLECTIONS.systemStats, "platform").catch(() => null));
 export async function getOrCreatePlatformStats(): Promise<SystemStats> {
   const existing = await getPlatformStats();
   if (existing) return existing;
@@ -177,3 +180,14 @@ export const getCollaborationRequestsByCreator = cache(async (userId: string) =>
 export const getCommunityPostsByCreator = cache(async (userId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("createdBy", "==", userId), limit(100)]));
 export const getBookmarkedCommunityPosts = cache(async (userId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("bookmarks", "array-contains", userId), limit(100)]));
 export const getCollaborationRequests = cache(async () => listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [orderBy("createdAt", "desc"), limit(100)]));
+
+export async function getSystemHealthCounts() {
+  const entries = [
+    ["users", COLLECTIONS.users], ["problems", COLLECTIONS.problemStatements], ["research", COLLECTIONS.researchPosts], ["competitions", COLLECTIONS.competitions], ["knowledgeAssets", COLLECTIONS.knowledgeAssets], ["notifications", COLLECTIONS.notifications], ["inboxItems", COLLECTIONS.adminInbox],
+  ] as const;
+  const results = await Promise.all(entries.map(async ([key, collectionName]) => {
+    try { const snap = await getCountFromServer(ref(collectionName)); return [key, snap.data().count] as const; }
+    catch { return [key, null] as const; }
+  }));
+  return Object.fromEntries(results) as Record<(typeof entries)[number][0], number | null>;
+}
