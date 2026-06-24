@@ -157,9 +157,10 @@ export async function updateRecord(
   id: string,
   data: Record<string, unknown>,
 ) {
-  return updateDoc(
+  return setDoc(
     doc(db, name, id),
     withoutUndefined({ ...data, updatedAt: serverTimestamp() }),
+    { merge: true },
   );
 }
 export async function upsertRecord(
@@ -193,7 +194,7 @@ export async function routeToAdminInbox(
 ) {
   return createRecord<AdminInboxItem>(COLLECTIONS.adminInbox, {
     ...data,
-    status: "open",
+    status: "pending",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   } as WithFieldValue<Omit<AdminInboxItem, "id">>);
@@ -948,15 +949,15 @@ export async function createAdminApplication(
     } as WithFieldValue<Omit<AdminApplication, "id">>,
   );
   await upsertRecord(COLLECTIONS.users, data.userId, {
-    role: "pending_admin",
+    role: data.requestedRole && data.requestedRole !== "admin" ? "member" : "pending_admin",
     email: data.email,
     name: data.name,
     updatedAt: serverTimestamp(),
   });
   await routeToAdminInbox({
     type: "role_request",
-    title: `Admin application: ${data.name}`,
-    description: data.email,
+    title: `New Role Request: ${data.name}`,
+    description: `${data.email} requested ${data.requestedRole || "admin"}`,
     sourceCollection: COLLECTIONS.adminApplications,
     sourceId: created.id,
     createdBy: data.userId,
@@ -975,7 +976,7 @@ export async function reviewAdminApplication(
     reviewedAt: serverTimestamp(),
   });
   await updateRecord(COLLECTIONS.users, application.userId, {
-    role: status === "approved" ? "admin" : "member",
+    role: status === "approved" ? application.requestedRole || "admin" : "member",
   });
   return logAudit({
     actorId: reviewerId,
@@ -1157,6 +1158,24 @@ export async function convertResearchToCompetition(
   });
   return created;
 }
+export async function addAdminInboxComment(item: AdminInboxItem, authorId: string, authorName: string, body: string) {
+  const comment = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    body,
+    authorId,
+    authorName,
+    createdAt: new Date().toISOString(),
+  };
+  await updateRecord(COLLECTIONS.adminInbox, item.id, {
+    comments: [...(item.comments || []), comment],
+  });
+  return comment;
+}
+
+export async function updateAdminInboxStatus(item: AdminInboxItem, status: AdminInboxItem["status"], assignedTo?: string) {
+  return updateRecord(COLLECTIONS.adminInbox, item.id, { status, assignedTo });
+}
+
 export async function updateCompetitionStatus(
   competition: Competition,
   reviewerId: string,
