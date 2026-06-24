@@ -17,6 +17,7 @@ export type AdminInboxType = "Problem Submission" | "Research Submission" | "Rol
 export type DiscussionTargetType = "problem_statement" | "research" | "competition" | "knowledge_asset" | "general";
 
 export interface FirestoreEntity { id: string; }
+export interface TeamMember extends FirestoreEntity { name: string; institution?: string; degree?: string; discipline?: string; designation?: string; bio?: string; photoUrl?: string; linkedinUrl?: string; displayOrder?: number; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface UserProfile extends FirestoreEntity { displayName?: string; name?: string; email?: string; role?: Role; status?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface Organization extends FirestoreEntity { name: string; publicLabel?: string; industry?: string; description?: string; website?: string; city?: string; state?: string; country?: string; status?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface ProblemStatement extends FirestoreEntity { title: string; description?: string; category?: ProblemCategory | string; organization?: string; organizationId?: string; publicOrganizationLabel?: string; problemStatement?: string; attachments?: string[]; createdBy?: string; submittedBy?: string; assignedResearcher?: string; assignedReviewer?: string; status?: ProblemStatementStatus; visibility?: Visibility; createdAt?: DateLike; updatedAt?: DateLike; questionnaire?: Record<string, unknown>; }

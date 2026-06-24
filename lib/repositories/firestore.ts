@@ -1,10 +1,11 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, increment, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, type DocumentData, type QueryConstraint, type WithFieldValue } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, getCountFromServer, increment, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, type DocumentData, type QueryConstraint, type WithFieldValue } from "firebase/firestore";
+import type { User as FirebaseUser } from "firebase/auth";
 import { cache } from "react";
 import { db } from "@/lib/firebase";
-import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, InternalThread, KnowledgeAsset, Notification, Organization, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, UserProfile } from "@/lib/types";
+import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, InternalThread, KnowledgeAsset, Notification, Organization, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, TeamMember, UserProfile } from "@/lib/types";
 
 export const COLLECTIONS = {
-  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", systemStats: "system_stats", auditLogs: "audit_logs",
+  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", auditLogs: "audit_logs",
   challenges: "problem_statements", challengeReviews: "problem_reviews",
 } as const;
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
@@ -22,6 +23,33 @@ export async function deleteRecord(name: CollectionName, id: string) { return de
 export async function logAudit(data: Omit<AuditLog, "id" | "createdAt">) { return createRecord<AuditLog>(COLLECTIONS.auditLogs, { ...data, createdAt: serverTimestamp() } as WithFieldValue<Omit<AuditLog, "id">>); }
 export async function bumpStats(field: keyof Omit<SystemStats, "id" | "lastUpdated">, by = 1) { return upsertRecord(COLLECTIONS.systemStats, "platform", { [field]: increment(by), lastUpdated: serverTimestamp() }); }
 export async function routeToAdminInbox(data: Omit<AdminInboxItem, "id" | "createdAt" | "updatedAt" | "status">) { return createRecord<AdminInboxItem>(COLLECTIONS.adminInbox, { ...data, status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<AdminInboxItem, "id">>); }
+
+const BOOTSTRAP_ADMIN_EMAIL = "subhshivam22@gmail.com";
+const BOOTSTRAP_ADMIN_NAME = "Roopveer Jha";
+export function normalizeEmail(email?: string | null) { return email?.trim().toLowerCase() || ""; }
+export async function ensureBootstrapAdminRegistry() { return upsertRecord(COLLECTIONS.bootstrapAdmins, BOOTSTRAP_ADMIN_EMAIL, { email: BOOTSTRAP_ADMIN_EMAIL, name: BOOTSTRAP_ADMIN_NAME, role: "admin", active: true, updatedAt: serverTimestamp() }); }
+export async function isBootstrapAdminEmail(email?: string | null) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  if (normalized === BOOTSTRAP_ADMIN_EMAIL) await ensureBootstrapAdminRegistry();
+  const admin = await getRecord<{ active?: boolean; role?: string }>(COLLECTIONS.bootstrapAdmins, normalized);
+  return Boolean(admin?.active !== false && admin?.role === "admin");
+}
+export async function ensureUserProfile(user: FirebaseUser): Promise<UserProfile> {
+  const existing = await getRecord<UserProfile>(COLLECTIONS.users, user.uid);
+  const isBootstrapAdmin = await isBootstrapAdminEmail(user.email);
+  const base = { email: user.email || "", displayName: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), name: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), updatedAt: serverTimestamp() };
+  if (!existing) {
+    const profile = { ...base, role: isBootstrapAdmin ? "admin" : "member", status: "active", createdAt: serverTimestamp() };
+    await upsertRecord(COLLECTIONS.users, user.uid, profile);
+    return { id: user.uid, ...profile } as UserProfile;
+  }
+  const patch: Record<string, unknown> = { ...base };
+  if (isBootstrapAdmin && existing.role !== "admin" && existing.role !== "super_admin") patch.role = "admin";
+  await upsertRecord(COLLECTIONS.users, user.uid, patch);
+  return { ...existing, email: base.email, displayName: base.displayName, name: base.name, role: (patch.role as UserProfile["role"]) || existing.role } as UserProfile;
+}
+
 export async function notifyAdmins(type: Notification["type"], title: string, message: string) { return createRecord<Notification>(COLLECTIONS.notifications, { userId: "admins", type, title, message, read: false, createdAt: serverTimestamp() } as WithFieldValue<Omit<Notification, "id">>); }
 
 function publicConstraints(publicOnly = true) { return publicOnly ? [where("visibility", "==", "public")] : []; }
@@ -34,8 +62,24 @@ export const getSubmittedChallenges = getSubmittedProblemStatements;
 export const getProblemStatementsByOrganization = cache(async (organizationId: string, admin = false) => listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("organizationId", "==", organizationId), ...(admin ? [] : [where("visibility", "==", "public")]), limit(100)]));
 export const getChallengesByOrganization = getProblemStatementsByOrganization;
 export const getOrganizations = cache(async (maxItems = 50): Promise<Organization[]> => listCollection<Organization>(COLLECTIONS.organizations, [orderBy("name", "asc"), limit(maxItems)]));
+export const getTeamMembers = cache(async (): Promise<TeamMember[]> => listCollection<TeamMember>(COLLECTIONS.teamMembers, [orderBy("displayOrder", "asc"), limit(100)]).catch(() => listCollection<TeamMember>(COLLECTIONS.teamMembers, [limit(100)])));
 export const getUsers = cache(async (maxItems = 100): Promise<UserProfile[]> => listCollection<UserProfile>(COLLECTIONS.users, [limit(maxItems)]));
 export const getPlatformStats = cache(async (): Promise<SystemStats | null> => getRecord<SystemStats>(COLLECTIONS.systemStats, "platform"));
+export async function getOrCreatePlatformStats(): Promise<SystemStats> {
+  const existing = await getPlatformStats();
+  if (existing) return existing;
+  const [members, organizations, problems, research, competitions, knowledge] = await Promise.all([
+    getCountFromServer(ref(COLLECTIONS.users)),
+    getCountFromServer(ref(COLLECTIONS.organizations)),
+    getCountFromServer(ref(COLLECTIONS.problemStatements)),
+    getCountFromServer(ref(COLLECTIONS.researchPosts)),
+    getCountFromServer(ref(COLLECTIONS.competitions)),
+    getCountFromServer(ref(COLLECTIONS.knowledgeAssets)),
+  ]);
+  const stats = { memberCount: members.data().count, organizationCount: organizations.data().count, problemStatementCount: problems.data().count, challengeCount: problems.data().count, researchCount: research.data().count, competitionCount: competitions.data().count, knowledgeCount: knowledge.data().count, lastUpdated: serverTimestamp() };
+  await upsertRecord(COLLECTIONS.systemStats, "platform", stats);
+  return { id: "platform", ...stats, lastUpdated: null } as SystemStats;
+}
 export const getQuestionnaireTemplates = cache(async () => listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [orderBy("category", "asc")]));
 export async function getQuestionnaireByType(category: string) { const rows = await listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [where("category", "==", category), limit(1)]); return rows[0] || null; }
 export const getAdminApplications = cache(async () => listCollection<AdminApplication>(COLLECTIONS.adminApplications, [orderBy("createdAt", "desc"), limit(100)]));
