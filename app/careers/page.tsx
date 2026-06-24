@@ -1,0 +1,10 @@
+"use client";
+import { useState } from "react";
+import { Card } from "@/components/ui";
+import { createCareerApplication } from "@/lib/repositories/firestore";
+
+export default function CareersPage() {
+  const [message, setMessage] = useState("");
+  async function submit(formData: FormData) { setMessage("Submitting..."); try { await createCareerApplication({ name: String(formData.get("name")), email: String(formData.get("email")), cvLink: String(formData.get("cvLink")), sopLink: String(formData.get("sopLink") || ""), expectedCompensation: String(formData.get("expectedCompensation") || "Hybrid") as "Money" | "Equity" | "Hybrid" }); setMessage("Application submitted to the Admin Inbox."); } catch (e) { setMessage(e instanceof Error ? e.message : "Unable to submit application."); } }
+  return <main className="min-h-screen bg-navy px-6 py-10"><p className="text-sm uppercase tracking-[.35em] text-blue-300">Careers</p><h1 className="mt-3 font-display text-5xl">Build NumSum With Us</h1><p className="mt-3 max-w-3xl text-white/60">Openings are managed by admins in Firestore. Submit your application links here and they will route to the unified Admin Inbox.</p><Card className="mt-8 max-w-2xl"><h2 className="font-display text-2xl">Apply</h2><form action={submit} className="mt-5 grid gap-3"><input name="name" required placeholder="Name" className="rounded-xl border border-white/10 bg-black/30 p-3" /><input name="email" type="email" required placeholder="Email" className="rounded-xl border border-white/10 bg-black/30 p-3" /><input name="cvLink" required placeholder="CV Link" className="rounded-xl border border-white/10 bg-black/30 p-3" /><input name="sopLink" placeholder="SOP Link" className="rounded-xl border border-white/10 bg-black/30 p-3" /><select name="expectedCompensation" className="rounded-xl border border-white/10 bg-black/30 p-3"><option>Money</option><option>Equity</option><option>Hybrid</option></select><button className="rounded-full bg-blue-400 px-5 py-3 font-semibold text-navy">Submit Application</button></form>{message && <p className="mt-4 text-white/60">{message}</p>}</Card></main>;
+}
