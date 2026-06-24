@@ -36,7 +36,7 @@ service cloud.firestore {
     match /settings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /role_definitions/{id} { allow read: if signedIn(); allow write: if platformAdmin(); }
     match /system_stats/{id} { allow read: if true; allow write: if platformAdmin(); }
-    match /audit_logs/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update, delete: if isSuperAdmin(); }
+    match /audit_logs/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update: if isSuperAdmin() || (platformAdmin() && id == '__schema'); allow delete: if isSuperAdmin(); }
 
     match /notifications/{id} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || (resource.data.userId == 'admins' && platformAdmin()) || platformAdmin());
