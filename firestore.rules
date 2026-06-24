@@ -72,9 +72,12 @@ service cloud.firestore {
     }
     match /community_posts/{id} {
       allow read: if isPublic() || signedIn();
-      allow create: if platformAdmin() || (signedIn() && ownsIncoming());
-      allow update, delete: if platformAdmin() || ownsExisting();
+      allow create: if platformAdmin() || (signedIn() && ownsIncoming() && (request.resource.data.linkedEntityType == 'general' || request.resource.data.linkedEntityId is string));
+      allow update, delete: if platformAdmin() || ownsExisting() || signedIn();
     }
+    match /comments/{id} { allow read: if signedIn(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /replies/{id} { allow read: if signedIn(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /community_analytics/{id} { allow read: if platformAdmin(); allow create, update: if signedIn(); allow delete: if platformAdmin(); }
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
 
     match /competitions/{id} {

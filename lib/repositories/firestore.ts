@@ -30,12 +30,16 @@ import {
 export { getInitializationStatus, initializePlatform };
 import type {
   AdminApplication,
+  AdminInboxComment,
   AdminInboxItem,
+  AssociatedType,
   AuditLog,
   CareerApplication,
   CareerOpening,
   ChallengeReview,
   CollaborationRequest,
+  Bookmark,
+  CommunityComment,
   CommunityPost,
   DiscussionTargetType,
   Competition,
@@ -83,6 +87,9 @@ export const COLLECTIONS = {
   bookmarks: "bookmarks",
   msmeCases: "msme_cases",
   privateCollaborationGroups: "private_collaboration_groups",
+  comments: "comments",
+  replies: "replies",
+  communityAnalytics: "community_analytics",
   competitionTeams: "competition_teams",
   competitionSubmissions: "competition_submissions",
   challenges: "problem_statements",
@@ -492,7 +499,7 @@ export const getKnowledgeAssets = cache(async (publicOnly = true) => {
   );
   return publicOnly ? byCreatedAtDesc(rows) : rows;
 });
-export const getCommunityPosts = cache(async () => {
+export const getCommunityPosts = cache(async (filter?: string) => {
   traceRepositoryRead(
     COLLECTIONS.communityPosts,
     ["visibility == public"],
@@ -501,10 +508,45 @@ export const getCommunityPosts = cache(async () => {
   return byCreatedAtDesc(
     await listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
       where("visibility", "==", "public"),
+      ...(filter && filter !== "latest" ? [where("type", "==", filter)] : []),
       limit(100),
     ]),
   );
 });
+
+export const getCommunityPost = cache(async (id: string) =>
+  getRecord<CommunityPost>(COLLECTIONS.communityPosts, id),
+);
+export const getCommunityPostsByEntity = cache(
+  async (linkedEntityType: DiscussionTargetType, linkedEntityId: string) =>
+    listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
+      where("linkedEntityType", "==", linkedEntityType),
+      where("linkedEntityId", "==", linkedEntityId),
+      limit(20),
+    ]).catch(() =>
+      listCollection<CommunityPost>(COLLECTIONS.communityPosts, [
+        where("associatedType", "==", linkedEntityType),
+        where("associatedId", "==", linkedEntityId),
+        limit(20),
+      ]),
+    ),
+);
+export const getCollaborationRequestsForEntity = cache(
+  async (associatedType: AssociatedType, associatedId: string) =>
+    listCollection<CollaborationRequest>(COLLECTIONS.collaborationRequests, [
+      where("associatedType", "==", associatedType),
+      where("associatedId", "==", associatedId),
+      limit(20),
+    ]).catch(() => []),
+);
+export const getBookmarksForUser = cache(async (userId: string) =>
+  listCollection<Bookmark>(COLLECTIONS.bookmarks, [
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+    limit(100),
+  ]).catch(() => []),
+);
+
 export const getMsmeCases = cache(async () =>
   listCollection<MsmeCase>(COLLECTIONS.msmeCases, [limit(100)]),
 );
@@ -724,8 +766,11 @@ export async function createCommunityPost(
     "id" | "createdAt" | "updatedAt" | "upvotes" | "bookmarks" | "comments"
   >,
 ) {
-  const associatedType = data.associatedType || data.targetType || "general";
-  const associatedId = data.associatedId || data.targetId || null;
+  const associatedType = (data.associatedType || data.linkedEntityType || data.targetType || "general") as DiscussionTargetType;
+  const associatedId = data.associatedId || data.linkedEntityId || data.targetId || null;
+  if (associatedType !== "general" && !associatedId) throw new Error("Linked entity is required for non-general discussions.");
+  const typeByEntity: Record<DiscussionTargetType, CommunityPost["type"]> = { problem_statement: "problem", research: "research", competition: "competition", knowledge_asset: "knowledge", organization: "organization", msme_case: "msme", team: "team", community: "general", general: "general" };
+  const discussionType = data.type || typeByEntity[associatedType] || "general";
   const problemStatementId =
     associatedType === "problem_statement"
       ? associatedId
@@ -734,6 +779,9 @@ export async function createCommunityPost(
     COLLECTIONS.communityPosts,
     {
       ...data,
+      type: discussionType,
+      linkedEntityType: associatedType,
+      linkedEntityId: associatedId,
       associatedType,
       associatedId,
       targetType: associatedType,
@@ -742,6 +790,8 @@ export async function createCommunityPost(
       upvotes: [],
       bookmarks: [],
       comments: [],
+      views: 0,
+      status: data.status || "public",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     } as WithFieldValue<Omit<CommunityPost, "id">>,
@@ -761,7 +811,7 @@ export async function addCommunityComment(
   content: string,
   parentCommentId?: string,
 ) {
-  const comment = {
+  const comment: CommunityComment = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     content,
     createdBy: userId,
@@ -776,13 +826,47 @@ export async function addCommunityComment(
   } else {
     comments.push(comment);
   }
+  const mentions = extractMentions(content);
+  comment.mentions = mentions;
   await updateRecord(COLLECTIONS.communityPosts, post.id, { comments });
+  await createRecord<CommunityComment>(parentCommentId ? COLLECTIONS.replies : COLLECTIONS.comments, { ...comment, postId: post.id, parentCommentId: parentCommentId || null } as never);
+  await Promise.all(mentions.map((userId) => createNotification({ userId, type: "mention", title: "You were mentioned", message: post.title })));
   await createNotification({
     userId: post.createdBy || post.author,
-    type: "comment",
+    type: parentCommentId ? "reply" : "comment",
     title: "New comment",
     message: post.title,
   });
+}
+
+
+function extractMentions(content: string) {
+  return Array.from(new Set((content.match(/@([a-zA-Z0-9_.-]+)/g) || []).map((m) => m.slice(1))));
+}
+export async function incrementCommunityView(postId: string) {
+  await updateRecord(COLLECTIONS.communityPosts, postId, { views: increment(1) });
+  return upsertRecord(COLLECTIONS.communityAnalytics, postId, { postId, views: increment(1), updatedAt: serverTimestamp() });
+}
+export async function toggleCommunityBookmark(post: CommunityPost, userId: string) {
+  const bookmarked = post.bookmarks?.includes(userId);
+  await updateRecord(COLLECTIONS.communityPosts, post.id, { bookmarks: bookmarked ? arrayRemove(userId) : arrayUnion(userId) });
+  if (!bookmarked) {
+    await createRecord<Bookmark>(COLLECTIONS.bookmarks, { userId, targetType: "community", targetId: post.id, title: post.title, href: `/community/${post.id}`, createdAt: serverTimestamp() } as WithFieldValue<Omit<Bookmark, "id">>);
+    await createNotification({ userId: post.createdBy || post.author, type: "bookmark", title: "Discussion bookmarked", message: post.title });
+  }
+}
+export async function reportCommunityComment(post: CommunityPost, commentId: string, userId: string) {
+  const comments = (post.comments || []).map((comment) => comment.id === commentId ? { ...comment, reportedBy: Array.from(new Set([...(comment.reportedBy || []), userId])) } : comment);
+  await updateRecord(COLLECTIONS.communityPosts, post.id, { comments });
+  return notifyAdmins("community_report", "Community comment reported", post.title);
+}
+export async function editCommunityComment(post: CommunityPost, commentId: string, userId: string, content: string) {
+  const comments = (post.comments || []).map((comment) => comment.id === commentId && comment.createdBy === userId ? { ...comment, content, updatedAt: new Date().toISOString() } : comment);
+  return updateRecord(COLLECTIONS.communityPosts, post.id, { comments });
+}
+export async function deleteCommunityComment(post: CommunityPost, commentId: string, userId: string) {
+  const comments = (post.comments || []).map((comment) => comment.id === commentId && comment.createdBy === userId ? { ...comment, content: "[deleted]", deleted: true, updatedAt: new Date().toISOString() } : comment);
+  return updateRecord(COLLECTIONS.communityPosts, post.id, { comments });
 }
 
 export async function upvoteCommunityPost(postId: string, userId: string) {
@@ -1157,7 +1241,7 @@ export async function convertResearchToCompetition(
   return created;
 }
 export async function addAdminInboxComment(item: AdminInboxItem, authorId: string, authorName: string, body: string) {
-  const comment = {
+  const comment: AdminInboxComment = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     body,
     authorId,
