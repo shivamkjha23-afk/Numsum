@@ -1,10 +1,10 @@
 import type { Timestamp } from "firebase/firestore";
 
 export type Role = "visitor" | "member" | "pending_admin" | "admin" | "super_admin";
-export type ContentStatus = "draft" | "submitted" | "under_review" | "member_only" | "public" | "solved" | "archived";
+export type ContentStatus = "draft" | "submitted" | "under_review" | "needs_information" | "member_only" | "public" | "researching" | "competition" | "solved" | "archived";
 export type ProblemStatementStatus = ContentStatus;
-export type Visibility = "public" | "member_only" | "private" | "admin";
-export type ReviewAction = "comment" | "request_information" | "assign_research" | "assign_reviewer" | "change_status" | "approve_publication" | "approve" | "reject" | "assign" | "publish" | "archive" | "request_clarification";
+export type Visibility = "public" | "member_only" | "private";
+export type ReviewAction = "comment" | "request_information" | "assign_research" | "assign_reviewer" | "change_status" | "change_visibility" | "approve_publication" | "approve" | "reject" | "assign" | "publish" | "archive" | "convert_to_competition" | "request_clarification";
 export type AdminApplicationStatus = "pending" | "approved" | "rejected";
 export type NotificationType = "admin_application" | "problem_submission" | "problem_review" | "research_submission" | "role_request" | "career_application" | "competition_request" | "collaboration_request" | "community_report" | "comment" | "mention" | "competition_update";
 export type KnowledgeAssetType = "Research" | "Case Study" | "Framework" | "Template" | "Guide" | "Best Practice" | "Industry Report";
@@ -13,22 +13,22 @@ export type ProblemCategory = "Manufacturing" | "Reliability" | "Quality" | "Ene
 export type ChallengeStatus = ProblemStatementStatus;
 export type ChallengeCategory = ProblemCategory;
 export type DateLike = Timestamp | Date | string | number | null;
-export type AdminInboxType = "Problem Submission" | "Research Submission" | "Role Request" | "Competition Request" | "Knowledge Request" | "Career Application" | "Community Report" | "Collaboration Request";
+export type AdminInboxType = "problem_submission" | "research_submission" | "role_request" | "competition_request" | "career_application" | "knowledge_submission" | "community_report" | "collaboration_request";
 export type DiscussionTargetType = "problem_statement" | "research" | "competition" | "knowledge_asset" | "general";
 
 export interface FirestoreEntity { id: string; }
 export interface TeamMember extends FirestoreEntity { name: string; institution?: string; degree?: string; discipline?: string; designation?: string; bio?: string; photoUrl?: string; linkedinUrl?: string; displayOrder?: number; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface UserProfile extends FirestoreEntity { displayName?: string; name?: string; email?: string; role?: Role; status?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface Organization extends FirestoreEntity { name: string; publicLabel?: string; industry?: string; description?: string; website?: string; city?: string; state?: string; country?: string; status?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
-export interface ProblemStatement extends FirestoreEntity { title: string; description?: string; category?: ProblemCategory | string; organization?: string; organizationId?: string; publicOrganizationLabel?: string; problemStatement?: string; attachments?: string[]; createdBy?: string; submittedBy?: string; assignedResearcher?: string; assignedReviewer?: string; status?: ProblemStatementStatus; visibility?: Visibility; createdAt?: DateLike; updatedAt?: DateLike; questionnaire?: Record<string, unknown>; }
+export interface ProblemStatement extends FirestoreEntity { title: string; summary?: string; description?: string; problemDescription?: string; category?: ProblemCategory | string; questionnaireResponses?: Record<string, unknown>; attachments?: string[]; createdBy?: string; organizationType?: string; visibility?: Visibility; status?: ProblemStatementStatus; createdAt?: DateLike; updatedAt?: DateLike; organization?: string; organizationId?: string; publicOrganizationLabel?: string; problemStatement?: string; submittedBy?: string; assignedResearcher?: string; assignedReviewer?: string; questionnaire?: Record<string, unknown>; adminNotes?: string; }
 export type Challenge = ProblemStatement;
-export interface QuestionnaireQuestion { id: string; label: string; type: "text" | "textarea" | "number" | "select" | "url" | "date" | "checkbox"; required?: boolean; options?: string[]; placeholder?: string; }
+export interface QuestionnaireQuestion { id: string; label: string; type: "text" | "textarea" | "number" | "dropdown" | "select" | "checkbox" | "radio" | "url"; required?: boolean; options?: string[]; placeholder?: string; }
 export interface QuestionnaireTemplate extends FirestoreEntity { category: ProblemCategory | string; name?: string; questions: QuestionnaireQuestion[]; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
-export interface ProblemReview extends FirestoreEntity { problemStatementId: string; action: ReviewAction; comment?: string; requestedInfo?: string; assignedTo?: string; statusFrom?: ProblemStatementStatus; statusTo?: ProblemStatementStatus; createdBy: string; createdAt?: DateLike; }
+export interface ProblemReview extends FirestoreEntity { problemStatementId: string; action: ReviewAction; comment?: string; requestedInfo?: string; assignedTo?: string; statusFrom?: ProblemStatementStatus; statusTo?: ProblemStatementStatus; visibilityFrom?: Visibility; visibilityTo?: Visibility; createdBy: string; createdAt?: DateLike; }
 export type ChallengeReview = ProblemReview & { challengeId?: string };
 export interface ThreadReply { id: string; body: string; author: string; mentions?: string[]; attachments?: string[]; createdAt?: DateLike; }
 export interface InternalThread extends FirestoreEntity { problemStatementId?: string; challengeId?: string; title: string; body?: string; replies?: ThreadReply[]; mentions?: string[]; attachments?: string[]; auditHistory?: string[]; createdBy: string; createdAt?: DateLike; updatedAt?: DateLike; }
-export interface Notification extends FirestoreEntity { userId: string; type: NotificationType; title: string; message: string; read: boolean; createdAt?: DateLike; }
+export interface Notification extends FirestoreEntity { userId: string; type: NotificationType; title: string; message: string; read: boolean; problemStatementId?: string; createdAt?: DateLike; }
 export interface AdminApplication extends FirestoreEntity { userId: string; name: string; email: string; experience?: string; motivation?: string; skills?: string[]; status: AdminApplicationStatus; createdAt?: DateLike; reviewedBy?: string; reviewedAt?: DateLike; }
 export interface AdminInboxItem extends FirestoreEntity { type: AdminInboxType; title: string; description?: string; sourceCollection: string; sourceId: string; status?: "open" | "approved" | "rejected" | "assigned" | "published" | "archived" | "clarification_requested"; assignedTo?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface CommunityPost extends FirestoreEntity { title: string; content: string; targetType?: DiscussionTargetType; targetId?: string; problemStatementId?: string; groupId?: string; visibility?: Visibility; tags?: string[]; author: string; createdAt?: DateLike; updatedAt?: DateLike; upvotes?: string[]; bookmarks?: string[]; status?: string; }
