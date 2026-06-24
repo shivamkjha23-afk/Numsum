@@ -2,10 +2,12 @@ import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, ge
 import type { User as FirebaseUser } from "firebase/auth";
 import { cache } from "react";
 import { db } from "@/lib/firebase";
+import { getInitializationStatus, initializePlatform } from "@/lib/platform-initialization";
+export { getInitializationStatus, initializePlatform };
 import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, CompetitionSubmission, CompetitionTeam, InternalThread, KnowledgeAsset, Notification, Organization, PrivateCollaborationGroup, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, TeamMember, UserProfile } from "@/lib/types";
 
 export const COLLECTIONS = {
-  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", auditLogs: "audit_logs", privateCollaborationGroups: "private_collaboration_groups", competitionTeams: "competition_teams", competitionSubmissions: "competition_submissions",
+  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", systemDocuments: "system_documents", settings: "settings", roleDefinitions: "role_definitions", auditLogs: "audit_logs", privateCollaborationGroups: "private_collaboration_groups", competitionTeams: "competition_teams", competitionSubmissions: "competition_submissions",
   challenges: "problem_statements", challengeReviews: "problem_reviews",
 } as const;
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
