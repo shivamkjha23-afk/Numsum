@@ -1,11 +1,11 @@
 type NavLink = readonly [string, string];
-type NavGroup = { label: string; links: readonly NavLink[] };
+type NavGroup = { label: string; links: readonly NavLink[]; adminOnly?: boolean };
 export const navGroups: readonly NavGroup[] = [
   {
     label: "Explore",
     links: [
       ["Home", "/"],
-      ["Problem Statements", "/problem-statements"],
+      ["Explore", "/problem-statements"],
       ["Research", "/research"],
       ["Competitions", "/competitions"],
       ["Knowledge Hub", "/knowledge"],
@@ -15,7 +15,8 @@ export const navGroups: readonly NavGroup[] = [
   {
     label: "Community",
     links: [
-      ["Community Portal", "/community"],
+      ["Community", "/community"],
+      ["Organizations", "/organizations"],
       ["Create Discussion", "/community/new"],
       ["Team", "/team"],
       ["Careers", "/careers"],
@@ -33,8 +34,13 @@ export const navGroups: readonly NavGroup[] = [
   },
   {
     label: "Admin",
+    adminOnly: true,
     links: [
-      ["Admin Dashboard", "/admin"],
+      ["Dashboard", "/admin"],
+      ["Inbox", "/admin?tab=admin_inbox"],
+      ["Forms", "/admin?tab=questionnaire_templates"],
+      ["Team", "/admin?tab=team_members"],
+      ["Users", "/admin?tab=users"],
       ["System Health", "/admin/system-health"],
     ],
   },

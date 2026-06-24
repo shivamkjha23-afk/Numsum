@@ -5,11 +5,14 @@ export type Capability =
   | "competition:join" | "competition:manage" | "admin:apply" | "admin:review" | "organization:manage" | "internal:discuss" | "users:manage" | "system:manage";
 
 export const defaultRole: Role = "visitor";
-export const roles = ["visitor", "member", "pending_admin", "admin", "super_admin"] as const satisfies readonly Role[];
+export const roles = ["visitor", "member", "reviewer", "moderator", "organization", "pending_admin", "admin", "super_admin"] as const satisfies readonly Role[];
 
 export const roleCapabilities: Record<Role, Capability[] | ["*"]> = {
   visitor: ["browse:public"],
   member: ["browse:public", "problem:create", "challenge:create", "discussion:create", "research:submit", "competition:join", "admin:apply"],
+  reviewer: ["browse:public", "problem:create", "challenge:create", "discussion:create", "research:submit", "competition:join", "problem:review"],
+  moderator: ["browse:public", "problem:create", "challenge:create", "discussion:create", "research:submit", "competition:join", "problem:review", "internal:discuss"],
+  organization: ["browse:public", "problem:create", "challenge:create", "discussion:create", "research:submit", "competition:join", "organization:manage"],
   pending_admin: ["browse:public", "problem:create", "challenge:create", "discussion:create", "research:submit", "competition:join", "admin:apply"],
   admin: ["browse:public", "problem:create", "problem:review", "problem:publish", "challenge:create", "challenge:review", "challenge:publish", "discussion:create", "research:submit", "knowledge:publish", "competition:join", "competition:manage", "admin:review", "organization:manage", "internal:discuss"],
   super_admin: ["*"],
