@@ -7,7 +7,8 @@ import { ensureUserProfile } from "@/lib/repositories/firestore";
 import type { UserProfile } from "@/lib/types";
 
 type PendingAuth = { message?: string; returnTo?: string; onSuccess?: () => void | Promise<void> } | null;
-type AuthContextValue = { user: User | null; profile: UserProfile | null; role: UserProfile["role"] | null; loading: boolean; authReady: boolean; requestAuth: (options?: NonNullable<PendingAuth>) => void; closeAuth: () => void; };
+type AuthContextValue = { user: User | null; profile: UserProfile | null; role: UserProfile["role"] | null; loading: boolean; authReady: boolean; bootstrapAdminDetected: boolean; requestAuth: (options?: NonNullable<PendingAuth>) => void; closeAuth: () => void; };
+const BOOTSTRAP_ADMIN_EMAIL = "subhshivam22@gmail.com";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -19,15 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => onAuthStateChanged(auth, async (next) => {
     setLoading(true);
     setUser(next);
-    if (!next) { setProfile(null); setLoading(false); return; }
-    try { setProfile(await ensureUserProfile(next)); } catch (error) { console.error("[AUTH] Profile initialization failed", error); setProfile(null); }
+    if (!next) { console.info("[AUTH] No authenticated Firebase user"); setProfile(null); setLoading(false); return; }
+    console.info("[AUTH] Firebase user detected", { uid: next.uid, email: next.email });
+    try { const loadedProfile = await ensureUserProfile(next); console.info("[AUTH] Profile loaded", { uid: next.uid, email: loadedProfile.email, role: loadedProfile.role }); setProfile(loadedProfile); } catch (error) { console.error("[AUTH] Profile initialization failed", error); setProfile(null); }
     setLoading(false);
   }), []);
 
   const requestAuth = useCallback((options: NonNullable<PendingAuth> = {}) => setPendingAuth({ message: "Please sign in to continue", ...options }), []);
   const closeAuth = useCallback(() => setPendingAuth(null), []);
   const handleSuccess = useCallback(async () => { const resume = pendingAuth?.onSuccess; setPendingAuth(null); await resume?.(); }, [pendingAuth]);
-  const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), requestAuth, closeAuth }), [user, profile, loading, requestAuth, closeAuth]);
+  const bootstrapAdminDetected = (user?.email || "").trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
+  const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), bootstrapAdminDetected, requestAuth, closeAuth }), [user, profile, loading, bootstrapAdminDetected, requestAuth, closeAuth]);
 
   return <AuthContext.Provider value={value}>{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
 }
