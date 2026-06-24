@@ -1,4 +1,7 @@
-import { EmptyState } from "@/components/data-states";
-export default function Competitions() {
-  return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">Competitions</h1><p className="mt-3 text-white/60">Competition browsing remains public. Competition data will be connected after the Firestore competition model is introduced.</p><div className="mt-8"><EmptyState message="Be among the first contributors" /></div></main>;
-}
+import { Suspense } from "react";
+import { CollectionBrowser } from "@/components/collection-browser";
+import { EmptyState, ErrorState, LoadingState } from "@/components/data-states";
+import { Button } from "@/components/ui";
+import { getCompetitions } from "@/lib/repositories/firestore";
+async function CompetitionDirectory() { try { const competitions = await getCompetitions(); return competitions.length === 0 ? <EmptyState message="Be among the first contributors" /> : <CollectionBrowser placeholder="Search competitions" items={competitions.map((c) => ({ id: c.id, title: c.title, description: c.description, meta: [c.theme, c.status].filter(Boolean).join(" · "), tags: c.theme ? [c.theme] : [], href: c.status === "active" ? `/competitions/${c.id}/join` : undefined }))} />; } catch (error) { return <ErrorState retryHref="/competitions" message={error instanceof Error ? error.message : "Unable to load competitions."} />; } }
+export default function Competitions() { return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">Competitions</h1><p className="mt-3 text-white/60">Admin-hosted innovation sprints with registration, teams, submissions, evaluation and leaderboards.</p><div className="mt-6"><Button href="/teams/create">Form Team</Button></div><div className="mt-8"><Suspense fallback={<LoadingState label="Loading competitions" />}><CompetitionDirectory /></Suspense></div></main>; }
