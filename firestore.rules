@@ -35,7 +35,7 @@ service cloud.firestore {
     match /system_documents/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /settings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /role_definitions/{id} { allow read: if signedIn(); allow write: if platformAdmin(); }
-    match /system_stats/{id} { allow read: if true; allow write: if signedIn(); }
+    match /system_stats/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /audit_logs/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update, delete: if isSuperAdmin(); }
 
     match /notifications/{id} {
@@ -73,7 +73,7 @@ service cloud.firestore {
     match /community_posts/{id} {
       allow read: if isPublic() || signedIn();
       allow create: if signedIn() && ownsIncoming();
-      allow update, delete: if platformAdmin() || ownsExisting() || signedIn();
+      allow update, delete: if platformAdmin() || ownsExisting();
     }
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
 
@@ -93,6 +93,8 @@ service cloud.firestore {
     match /career_openings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /career_applications/{id} { allow create: if true; allow read, update, delete: if platformAdmin(); }
     match /private_collaboration_groups/{id} { allow read, write: if signedIn() && (platformAdmin() || ownsExisting() || ownsIncoming()); }
+    match /bookmarks/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /msme_cases/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
 
     match /{document=**} { allow read, write: if isSuperAdmin(); }
   }

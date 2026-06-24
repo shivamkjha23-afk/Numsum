@@ -43,6 +43,7 @@ import type {
   CompetitionTeam,
   InternalThread,
   KnowledgeAsset,
+  MsmeCase,
   Notification,
   Organization,
   PrivateCollaborationGroup,
@@ -79,6 +80,8 @@ export const COLLECTIONS = {
   settings: "settings",
   roleDefinitions: "role_definitions",
   auditLogs: "audit_logs",
+  bookmarks: "bookmarks",
+  msmeCases: "msme_cases",
   privateCollaborationGroups: "private_collaboration_groups",
   competitionTeams: "competition_teams",
   competitionSubmissions: "competition_submissions",
@@ -96,10 +99,10 @@ function ref(name: CollectionName) {
 function queryFor(name: CollectionName, constraints: QueryConstraint[] = []) {
   return constraints.length ? query(ref(name), ...constraints) : ref(name);
 }
-function withoutUndefined<T>(value: T): T {
+export function sanitizeFirestorePayload<T>(value: T): T {
   if (Array.isArray(value))
     return value
-      .map((item) => withoutUndefined(item))
+      .map((item) => sanitizeFirestorePayload(item))
       .filter((item) => item !== undefined) as T;
   if (value && typeof value === "object") {
     if (
@@ -111,7 +114,7 @@ function withoutUndefined<T>(value: T): T {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .filter(([, item]) => item !== undefined)
-        .map(([key, item]) => [key, withoutUndefined(item)]),
+        .map(([key, item]) => [key, sanitizeFirestorePayload(item)]),
     ) as T;
   }
   return value;
@@ -150,7 +153,7 @@ export async function createRecord<T extends object>(
   name: CollectionName,
   data: WithFieldValue<Omit<T, "id">>,
 ) {
-  return addDoc(ref(name), withoutUndefined(data));
+  return addDoc(ref(name), sanitizeFirestorePayload(data));
 }
 export async function updateRecord(
   name: CollectionName,
@@ -159,7 +162,7 @@ export async function updateRecord(
 ) {
   return setDoc(
     doc(db, name, id),
-    withoutUndefined({ ...data, updatedAt: serverTimestamp() }),
+    sanitizeFirestorePayload({ ...data, updatedAt: serverTimestamp() }),
     { merge: true },
   );
 }
@@ -168,7 +171,7 @@ export async function upsertRecord(
   id: string,
   data: Record<string, unknown>,
 ) {
-  return setDoc(doc(db, name, id), withoutUndefined(data), { merge: true });
+  return setDoc(doc(db, name, id), sanitizeFirestorePayload(data), { merge: true });
 }
 export async function deleteRecord(name: CollectionName, id: string) {
   return deleteDoc(doc(db, name, id));
@@ -502,6 +505,10 @@ export const getCommunityPosts = cache(async () => {
     ]),
   );
 });
+export const getMsmeCases = cache(async () =>
+  listCollection<MsmeCase>(COLLECTIONS.msmeCases, [limit(100)]),
+);
+
 export const getCompetitions = cache(async (publicOnly = true) => {
   traceRepositoryRead(
     COLLECTIONS.competitions,
@@ -779,22 +786,13 @@ export async function addCommunityComment(
 }
 
 export async function upvoteCommunityPost(postId: string, userId: string) {
-  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
-    upvotes: arrayUnion(userId),
-    updatedAt: serverTimestamp(),
-  });
+  return updateRecord(COLLECTIONS.communityPosts, postId, { upvotes: arrayUnion(userId) });
 }
 export async function bookmarkCommunityPost(postId: string, userId: string) {
-  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
-    bookmarks: arrayUnion(userId),
-    updatedAt: serverTimestamp(),
-  });
+  return updateRecord(COLLECTIONS.communityPosts, postId, { bookmarks: arrayUnion(userId) });
 }
 export async function removeCommunityBookmark(postId: string, userId: string) {
-  return updateDoc(doc(db, COLLECTIONS.communityPosts, postId), {
-    bookmarks: arrayRemove(userId),
-    updatedAt: serverTimestamp(),
-  });
+  return updateRecord(COLLECTIONS.communityPosts, postId, { bookmarks: arrayRemove(userId) });
 }
 export async function editOwnCommunityPost(
   post: CommunityPost,
@@ -1642,4 +1640,14 @@ export async function getSystemHealthCounts() {
     (typeof entries)[number][0],
     number | null
   >;
+}
+
+
+export async function updateUserRoleAndStatus(userId: string, reviewerId: string, patch: { role?: UserProfile["role"]; status?: string; organization?: string }) {
+  await updateRecord(COLLECTIONS.users, userId, patch as Record<string, unknown>);
+  await logAudit({ actorId: reviewerId, action: "user_governance_updated", collectionName: COLLECTIONS.users, documentId: userId, after: patch });
+}
+
+export async function createMsmeCase(data: Omit<MsmeCase, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<MsmeCase>(COLLECTIONS.msmeCases, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MsmeCase, "id">>);
 }
