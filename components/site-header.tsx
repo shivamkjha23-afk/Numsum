@@ -1,7 +1,6 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { useState } from "react";
 import { AuthNav } from "@/components/auth-nav";
 import { useIsAdmin } from "@/components/auth-provider";
@@ -23,7 +22,7 @@ export function SiteHeader() {
           <Link className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white" href={homeLink[1]}>{homeLink[0]}</Link>
           {visibleGroups.map((group) => (
             <div className="group relative" key={group.label}>
-              <button className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">{group.label} <span aria-hidden="true">▼</span></button>
+              <button className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">{group.label}</button>
               <div className="invisible absolute left-1/2 top-full w-60 -translate-x-1/2 pt-3 opacity-0 transition group-hover:visible group-hover:opacity-100">
                 <div className="grid gap-1 rounded-2xl border border-white/10 bg-[#07101d] p-2 shadow-2xl">
                   {group.links.map(([label, href]) => <Link className="rounded-xl px-3 py-2 transition hover:bg-white/10 hover:text-white" href={href} key={href}>{label}</Link>)}
@@ -32,9 +31,6 @@ export function SiteHeader() {
             </div>
           ))}
         </div>
-        <form action="/search" className="hidden max-w-xs flex-1 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 xl:flex">
-          <Search size={16} /><input name="q" aria-label="Search NumSum" placeholder="Search platform" className="w-full bg-transparent outline-none placeholder:text-white/40" />
-        </form>
         <div className="ml-auto hidden lg:block"><AuthNav /></div>
         <button className="rounded-full border border-white/10 px-3 py-2 text-sm text-white/75 lg:hidden" onClick={() => setOpen((value) => !value)}>Menu</button>
       </nav>
