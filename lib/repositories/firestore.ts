@@ -175,6 +175,7 @@ export const getCommunityByProblem = cache(async (problemStatementId: string) =>
 export const getCompetitionsByProblem = cache(async (problemStatementId: string) => listCollection<Competition>(COLLECTIONS.competitions, [where("sourceProblemId", "==", problemStatementId), limit(50)]));
 export const getCompetitionById = cache(async (id: string) => getRecord<Competition>(COLLECTIONS.competitions, id));
 export const getCompetitionTeams = cache(async (competitionId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("competitionId", "==", competitionId), limit(100)]));
+export const getCompetitionTeamsByUser = cache(async (userId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("members", "array-contains", userId), limit(100)]));
 export const getCompetitionSubmissions = cache(async (competitionId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("competitionId", "==", competitionId), limit(100)]));
 export const getKnowledgeAssetById = cache(async (id: string) => getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id));
 export const getKnowledgeBySource = cache(async (sourceType: string, sourceId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("sourceType", "==", sourceType), where("sourceId", "==", sourceId), limit(50)]));
