@@ -1,11 +1,10 @@
 "use client";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card } from "@/components/ui";
-import { auth, db } from "@/lib/firebase";
-import { createAdminApplication } from "@/lib/repositories/firestore";
+import { auth } from "@/lib/firebase";
+import { createAdminApplication, ensureUserProfile } from "@/lib/repositories/firestore";
 
 export default function Join() {
   const router = useRouter();
@@ -19,7 +18,7 @@ export default function Join() {
       const role = roleChoice === "pending_admin" ? "pending_admin" : "member";
       const credential = await createUserWithEmailAndPassword(auth, email, String(formData.get("password")));
       await updateProfile(credential.user, { displayName });
-      await setDoc(doc(db, "users", credential.user.uid), { displayName, email: credential.user.email, role, status: "active", createdAt: serverTimestamp() }, { merge: true });
+      await ensureUserProfile(credential.user);
       if (role === "pending_admin") await createAdminApplication({ userId: credential.user.uid, name: displayName, email, motivation: "Requested admin role during signup", skills: [] });
       router.push("/dashboard");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to create account."); }
