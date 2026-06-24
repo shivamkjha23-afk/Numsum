@@ -18,6 +18,7 @@ const settingsDocs = {
   msme_intelligence: { enabled: true, defaultRegion: "India" },
 };
 const roleDefinitions = {
+  default: { label: "Default", permissions: ["read_public"] },
   visitor: { label: "Visitor", permissions: ["read_public"] },
   member: { label: "Member", permissions: ["read_public", "submit_problem", "join_competition"] },
   pending_admin: { label: "Pending Admin", permissions: ["read_public", "submit_problem"] },
@@ -35,11 +36,13 @@ let initializationPromise: Promise<PlatformInitializationResult> | null = null;
 type Patch = Record<string, unknown>;
 async function createOrPatchMissing(collectionName: string, id: string, defaults: Patch): Promise<"created" | "patched" | "unchanged"> {
   const ref = doc(db, collectionName, id);
+  console.info("[INIT] Checking platform document", { collectionName, id });
   const snap = await getDoc(ref);
-  if (!snap.exists()) { await setDoc(ref, { ...defaults, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }); return "created"; }
+  if (!snap.exists()) { console.info("[INIT] Creating missing platform document", { collectionName, id }); await setDoc(ref, { ...defaults, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }); return "created"; }
   const data = snap.data();
   const patch = Object.fromEntries(Object.entries(defaults).filter(([key]) => data[key] === undefined));
-  if (Object.keys(patch).length) { await setDoc(ref, { ...patch, updatedAt: serverTimestamp() }, { merge: true }); return "patched"; }
+  if (Object.keys(patch).length) { console.info("[INIT] Patching missing platform fields", { collectionName, id, fields: Object.keys(patch) }); await setDoc(ref, { ...patch, updatedAt: serverTimestamp() }, { merge: true }); return "patched"; }
+  console.info("[INIT] Platform document unchanged", { collectionName, id });
   return "unchanged";
 }
 
@@ -66,16 +69,17 @@ export async function getInitializationStatus(): Promise<InitializationStatus> {
     getDoc(doc(db, COLLECTIONS.systemDocuments, "platform")),
     getDoc(doc(db, COLLECTIONS.settings, "platform")),
     getDoc(doc(db, COLLECTIONS.questionnaireTemplates, "manufacturing")),
-    getDoc(doc(db, COLLECTIONS.roleDefinitions, "admin")),
+    getDoc(doc(db, COLLECTIONS.roleDefinitions, "default")),
     getDoc(doc(db, COLLECTIONS.systemStats, "platform")),
   ]);
-  const missing = ["system/platform", "settings/platform", "questionnaire_templates/manufacturing", "role_definitions/admin", "system_stats/platform"].filter((_, index) => !checks[index].exists());
+  const missing = ["system/platform", "settings/platform", "questionnaire_templates/manufacturing", "role_definitions/default", "system_stats/platform"].filter((_, index) => !checks[index].exists());
   return { id: INIT_STATUS_ID, initialized: missing.length === 0 && Boolean(details.initialized), version: Number(details.version || 0), modules: PLATFORM_MODULES, missingRecords: missing, lastRunAt: details.lastRunAt as InitializationStatus["lastRunAt"], updatedAt: details.updatedAt as InitializationStatus["updatedAt"] };
 }
 
 export function initializePlatform(): Promise<PlatformInitializationResult> {
   if (initializationPromise) return initializationPromise;
   initializationPromise = (async () => {
+    console.info("[INIT] Starting platform initialization");
     const changes: PlatformInitializationResult["changes"] = [];
     for (const [id, defaults] of Object.entries(systemDocs)) changes.push({ collection: COLLECTIONS.systemDocuments, id, status: await createOrPatchMissing(COLLECTIONS.systemDocuments, id, defaults) });
     for (const [id, defaults] of Object.entries(settingsDocs)) changes.push({ collection: COLLECTIONS.settings, id, status: await createOrPatchMissing(COLLECTIONS.settings, id, defaults) });
@@ -83,6 +87,7 @@ export function initializePlatform(): Promise<PlatformInitializationResult> {
     for (const [id, defaults] of Object.entries(roleDefinitions)) changes.push({ collection: COLLECTIONS.roleDefinitions, id, status: await createOrPatchMissing(COLLECTIONS.roleDefinitions, id, defaults) });
     changes.push({ collection: COLLECTIONS.systemStats, id: "platform", status: await ensureStatisticsDocument() });
     await setDoc(doc(db, COLLECTIONS.systemDocuments, INIT_STATUS_ID), { initialized: true, version: INIT_VERSION, modules: PLATFORM_MODULES, lastRunAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+    console.info("[INIT] Platform initialization complete", { changes });
     return { initialized: true, version: INIT_VERSION, changes };
   })();
   return initializationPromise;

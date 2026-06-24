@@ -34,7 +34,10 @@ export async function ensureBootstrapAdminRegistry() { return upsertRecord(COLLE
 export async function isBootstrapAdminEmail(email?: string | null) {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
-  if (normalized === BOOTSTRAP_ADMIN_EMAIL) await ensureBootstrapAdminRegistry();
+  if (normalized === BOOTSTRAP_ADMIN_EMAIL) {
+    try { await ensureBootstrapAdminRegistry(); }
+    catch (error) { console.warn("[ADMIN] Unable to update bootstrap admin registry; continuing with configured bootstrap email", error); }
+  }
   const admin = await getRecord<{ active?: boolean; role?: string }>(COLLECTIONS.bootstrapAdmins, normalized);
   return Boolean(admin?.active !== false && admin?.role === "admin");
 }
