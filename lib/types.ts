@@ -49,6 +49,9 @@ export interface CareerOpening extends FirestoreEntity { position: string; type:
 export interface CareerApplication extends FirestoreEntity { openingId?: string; name: string; email: string; cvLink: string; sopLink?: string; expectedCompensation?: "Money" | "Equity" | "Hybrid"; createdAt?: DateLike; status?: ContentStatus; }
 export interface AuditLog extends FirestoreEntity { actorId: string; action: string; collectionName: string; documentId: string; before?: unknown; after?: unknown; createdAt?: DateLike; }
 export interface SystemStats extends FirestoreEntity { memberCount?: number; organizationCount?: number; problemStatementCount?: number; challengeCount?: number; researchCount?: number; competitionCount?: number; knowledgeCount?: number; communityCount?: number; lastUpdated?: DateLike; }
+export type PlatformModuleKey = "core" | "organizations" | "competitions" | "knowledge_hub" | "msme_intelligence";
+export interface InitializationStatus extends FirestoreEntity { initialized: boolean; version: number; modules: PlatformModuleKey[]; missingRecords: string[]; lastRunAt?: DateLike; updatedAt?: DateLike; }
+export interface PlatformInitializationResult { initialized: boolean; version: number; changes: Array<{ collection: string; id: string; status: "created" | "patched" | "unchanged" }>; }
 export interface SearchResult { id: string; type: string; title: string; description?: string; href: string; tags?: string[]; }
 export interface OrganizationStats { organizations: number; problemStatements: number; challenges?: number; }
 export interface LabelItem { id: string; label: string; sortOrder?: number; description?: string; }
