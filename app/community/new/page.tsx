@@ -22,11 +22,15 @@ export default function NewDiscussion() {
         associatedType: String(
           formData.get("associatedType") || "general",
         ) as DiscussionTargetType,
+        linkedEntityType: String(formData.get("associatedType") || "general") as DiscussionTargetType,
         associatedId: String(formData.get("associatedId") || "") || undefined,
+        linkedEntityId: String(formData.get("associatedId") || "") || undefined,
         tags: String(formData.get("tags") || "")
           .split(",")
           .map((x) => x.trim())
           .filter(Boolean),
+        attachments: String(formData.get("attachments") || "").split(",").map((url) => url.trim()).filter(Boolean).map((url) => ({ type: "website" as const, label: url, url })),
+        mentions: String(formData.get("content") || "").match(/@([a-zA-Z0-9_.-]+)/g)?.map((m) => m.slice(1)) || [],
         visibility: "public",
         author: user.uid,
         createdBy: user.uid,
@@ -63,6 +67,11 @@ export default function NewDiscussion() {
             <DocumentSelector
               defaultType={params.get("type")}
               defaultId={params.get("id")}
+            />
+            <input
+              name="attachments"
+              placeholder="Attachment metadata URLs (PDF, image, GitHub, Drive, DOI, ResearchGate, website, video)"
+              className="rounded-xl border border-white/10 bg-black/30 p-3"
             />
             <input
               name="tags"

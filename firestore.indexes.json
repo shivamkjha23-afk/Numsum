@@ -1,0 +1,10 @@
+{
+  "indexes": [
+    { "collectionGroup": "community_posts", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "type", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "community_posts", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "linkedEntityType", "order": "ASCENDING" }, { "fieldPath": "linkedEntityId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "collaboration_requests", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "associatedType", "order": "ASCENDING" }, { "fieldPath": "associatedId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "bookmarks", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] },
+    { "collectionGroup": "notifications", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}
