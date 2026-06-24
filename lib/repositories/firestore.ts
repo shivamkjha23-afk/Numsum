@@ -2,10 +2,10 @@ import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, ge
 import type { User as FirebaseUser } from "firebase/auth";
 import { cache } from "react";
 import { db } from "@/lib/firebase";
-import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, InternalThread, KnowledgeAsset, Notification, Organization, PrivateCollaborationGroup, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, TeamMember, UserProfile } from "@/lib/types";
+import type { AdminApplication, AdminInboxItem, AuditLog, CareerApplication, CareerOpening, ChallengeReview, CollaborationRequest, CommunityPost, Competition, CompetitionSubmission, CompetitionTeam, InternalThread, KnowledgeAsset, Notification, Organization, PrivateCollaborationGroup, ProblemStatement, QuestionnaireTemplate, ResearchPost, SearchResult, SystemStats, TeamMember, UserProfile } from "@/lib/types";
 
 export const COLLECTIONS = {
-  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", auditLogs: "audit_logs", privateCollaborationGroups: "private_collaboration_groups",
+  users: "users", organizations: "organizations", problemStatements: "problem_statements", questionnaireTemplates: "questionnaire_templates", problemReviews: "problem_reviews", internalThreads: "internal_threads", communityPosts: "community_posts", researchPosts: "research_posts", knowledgeAssets: "knowledge_assets", competitions: "competitions", collaborationRequests: "collaboration_requests", careerOpenings: "career_openings", careerApplications: "career_applications", notifications: "notifications", adminApplications: "admin_applications", adminInbox: "admin_inbox", bootstrapAdmins: "bootstrap_admins", teamMembers: "team_members", systemStats: "system_stats", auditLogs: "audit_logs", privateCollaborationGroups: "private_collaboration_groups", competitionTeams: "competition_teams", competitionSubmissions: "competition_submissions",
   challenges: "problem_statements", challengeReviews: "problem_reviews",
 } as const;
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
@@ -37,16 +37,21 @@ export async function isBootstrapAdminEmail(email?: string | null) {
   return Boolean(admin?.active !== false && admin?.role === "admin");
 }
 export async function ensureUserProfile(user: FirebaseUser): Promise<UserProfile> {
+  console.info("[AUTH] Ensuring user profile", { uid: user.uid, email: user.email });
   const existing = await getRecord<UserProfile>(COLLECTIONS.users, user.uid);
   const isBootstrapAdmin = await isBootstrapAdminEmail(user.email);
+  console.info("[ADMIN] Bootstrap admin check", { uid: user.uid, email: normalizeEmail(user.email), bootstrapMatch: isBootstrapAdmin });
   const base = { email: user.email || "", displayName: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), name: user.displayName || (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"), updatedAt: serverTimestamp() };
   if (!existing) {
-    const profile = { ...base, role: isBootstrapAdmin ? "admin" : "member", status: "active", createdAt: serverTimestamp() };
+    const profile = { uid: user.uid, ...base, role: isBootstrapAdmin ? "admin" : "member", status: "active", createdAt: serverTimestamp() };
+    console.info("[PROFILE] Creating user profile", { uid: user.uid, email: base.email, role: profile.role });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
+    await bumpStats("memberCount");
     return { id: user.uid, ...profile } as UserProfile;
   }
-  const patch: Record<string, unknown> = { ...base };
+  const patch: Record<string, unknown> = { uid: user.uid, ...base };
   if (isBootstrapAdmin && existing.role !== "admin" && existing.role !== "super_admin") patch.role = "admin";
+  console.info("[PROFILE] Updating user profile", { uid: user.uid, role: patch.role || existing.role });
   await upsertRecord(COLLECTIONS.users, user.uid, patch);
   return { ...existing, email: base.email, displayName: base.displayName, name: base.name, role: (patch.role as UserProfile["role"]) || existing.role } as UserProfile;
 }
@@ -160,6 +165,11 @@ export const getProblemReviews = cache(async (problemStatementId: string) => lis
 export const getResearchByProblem = cache(async (problemStatementId: string) => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [where("problemStatementId", "==", problemStatementId), limit(50)]));
 export const getCommunityByProblem = cache(async (problemStatementId: string) => listCollection<CommunityPost>(COLLECTIONS.communityPosts, [where("problemStatementId", "==", problemStatementId), limit(50)]));
 export const getCompetitionsByProblem = cache(async (problemStatementId: string) => listCollection<Competition>(COLLECTIONS.competitions, [where("sourceProblemId", "==", problemStatementId), limit(50)]));
+export const getCompetitionById = cache(async (id: string) => getRecord<Competition>(COLLECTIONS.competitions, id));
+export const getCompetitionTeams = cache(async (competitionId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("competitionId", "==", competitionId), limit(100)]));
+export const getCompetitionSubmissions = cache(async (competitionId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("competitionId", "==", competitionId), limit(100)]));
+export const getKnowledgeAssetById = cache(async (id: string) => getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id));
+export const getKnowledgeBySource = cache(async (sourceType: string, sourceId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("sourceType", "==", sourceType), where("sourceId", "==", sourceId), limit(50)]));
 export const getKnowledgeByProblem = cache(async (problemStatementId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("linkedProblemStatementId", "==", problemStatementId), limit(50)]));
 
 export const getResearchByCreator = cache(async (userId: string) => listCollection<ResearchPost>(COLLECTIONS.researchPosts, [where("createdBy", "==", userId), limit(100)]));
