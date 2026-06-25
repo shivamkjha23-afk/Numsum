@@ -51,6 +51,7 @@ import type {
   DiscussionPost,
   InternalThread,
   KnowledgeAsset,
+  LinkedResource,
   MsmeCase,
   Notification,
   Organization,
@@ -428,7 +429,7 @@ export async function notifyAdmins(
 }
 
 function publicConstraints(publicOnly = true) {
-  return publicOnly ? [where("visibility", "==", "public")] : [];
+  return publicOnly ? [where("visibility", "==", "public"), where("status", "==", "published")] : [];
 }
 function byCreatedAtDesc<T extends { createdAt?: unknown }>(rows: T[]) {
   return [...rows].sort((a, b) =>
@@ -462,7 +463,7 @@ export const getAllProblemStatements = cache(
 export const getAllChallenges = getAllProblemStatements;
 export const getSubmittedProblemStatements = cache(async () =>
   listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-    where("status", "in", ["submitted", "under_review", "needs_information"]),
+    where("status", "in", ["submitted", "under_review", "needs_more_info", "needs_information"]),
     limit(100),
   ]),
 );
@@ -685,21 +686,45 @@ export async function createProblemStatement(
 ) {
   if (!data.title?.trim())
     throw new Error("Problem statement title is required.");
-  const createdBy = data.createdBy || data.submittedBy || "";
+  const createdBy = data.submittedByUserId || data.createdBy || data.submittedBy || data.submitterId || "";
+  const shortDescription = data.shortDescription || data.summary || data.description || "";
+  const detailedDescription =
+    data.detailedDescription ||
+    data.problemDescription ||
+    data.problemStatement ||
+    data.description ||
+    "";
+  const attachmentsOrDriveLinks = data.attachmentsOrDriveLinks || data.attachments || [];
   const payload = {
     ...data,
-    summary: data.summary || data.description || "",
-    problemDescription:
-      data.problemDescription ||
-      data.problemStatement ||
-      data.description ||
-      "",
-    questionnaireResponses:
-      data.questionnaireResponses || data.questionnaire || {},
-    attachments: data.attachments || [],
+    shortDescription,
+    detailedDescription,
+    summary: shortDescription,
+    description: shortDescription,
+    problemDescription: detailedDescription,
+    problemStatement: detailedDescription,
+    attachmentsOrDriveLinks,
+    attachments: attachmentsOrDriveLinks,
+    questionnaireResponses: data.questionnaireResponses || data.questionnaire || {},
     createdBy,
     submittedBy: data.submittedBy || createdBy,
+    submittedByUserId: createdBy,
+    submitterId: data.submitterId || createdBy,
+    ownerIds: Array.from(new Set([createdBy, ...(data.ownerIds || [])].filter(Boolean))),
     status: "submitted",
+    adminReviewStatus: "submitted",
+    visibility: "submitter_only",
+    priority: data.priority || "medium",
+    onboardingSessionIds: data.onboardingSessionIds || [],
+    questionnaireResponseIds: data.questionnaireResponseIds || [],
+    sopIds: data.sopIds || [],
+    knowledgeAssetIds: data.knowledgeAssetIds || [],
+    researchItemIds: data.researchItemIds || [],
+    pilotTrackIds: data.pilotTrackIds || [],
+    meetingLogIds: data.meetingLogIds || [],
+    competitionIds: data.competitionIds || [],
+    discussionPostIds: data.discussionPostIds || [],
+    linkedResources: data.linkedResources || [],
     visibility: "submitter_only",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -712,7 +737,7 @@ export async function createProblemStatement(
   await routeToAdminInbox({
     type: "problem_submission",
     title: data.title,
-    description: payload.summary,
+    description: payload.shortDescription,
     sourceCollection: COLLECTIONS.problemStatements,
     sourceId: created.id,
     createdBy,
@@ -734,7 +759,7 @@ export async function createProblemStatement(
     });
   await notifyAdmins(
     "problem_submission",
-    "New Problem Statement",
+    "New MSME Problem Submitted",
     data.title,
     created.id,
   );
@@ -1686,17 +1711,72 @@ export async function globalSearch(term: string): Promise<SearchResult[]> {
 export const getProblemStatementById = cache(async (id: string) =>
   getRecord<ProblemStatement>(COLLECTIONS.problemStatements, id),
 );
-export const getProblemStatementsByCreator = cache(async (userId: string) =>
+
+export const getMyProblemStatements = cache(async (userId: string) =>
   listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-    where("createdBy", "==", userId),
+    where("submittedByUserId", "==", userId),
+    orderBy("createdAt", "desc"),
     limit(100),
   ]).catch(() =>
     listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-      where("submittedBy", "==", userId),
+      where("createdBy", "==", userId),
       limit(100),
     ]),
   ),
 );
+export const getPublicProblemStatements = getProblemStatements;
+export const getAdminProblemStatements = getAllProblemStatements;
+export async function updateProblemStatement(id: string, patch: Partial<ProblemStatement>, actorId?: string) {
+  await updateRecord(COLLECTIONS.problemStatements, id, patch as Record<string, unknown>);
+  if (actorId) await logAudit({ actorId, action: "problem_updated", collectionName: COLLECTIONS.problemStatements, documentId: id, after: patch });
+}
+export async function updateProblemStatus(id: string, status: ProblemStatement["status"], actorId: string, notes?: string) {
+  const patch: Partial<ProblemStatement> = { status, adminReviewStatus: status, reviewedAt: serverTimestamp() as never };
+  if (notes !== undefined) patch.adminNotes = notes;
+  if (status === "published") {
+    patch.visibility = "public";
+    patch.publishedAt = serverTimestamp() as never;
+  }
+  return updateProblemStatement(id, patch, actorId);
+}
+export async function updateProblemVisibility(id: string, visibility: ProblemStatement["visibility"], actorId: string) {
+  const patch: Partial<ProblemStatement> = { visibility };
+  if (visibility === "public") patch.publishedAt = serverTimestamp() as never;
+  return updateProblemStatement(id, patch, actorId);
+}
+export async function assignProblemToAdmin(id: string, assignedAdminId: string, actorId: string) {
+  return updateProblemStatement(id, { assignedAdminId, assignedReviewer: assignedAdminId }, actorId);
+}
+function resourceIdField(type: LinkedResource["type"]) {
+  const fields: Partial<Record<LinkedResource["type"], keyof ProblemStatement>> = {
+    onboarding_session: "onboardingSessionIds",
+    questionnaire_response: "questionnaireResponseIds",
+    sop_document: "sopIds",
+    knowledge_asset: "knowledgeAssetIds",
+    research: "researchItemIds",
+    pilot_track: "pilotTrackIds",
+    meeting_log: "meetingLogIds",
+    competition: "competitionIds",
+    community: "discussionPostIds",
+  };
+  return fields[type];
+}
+export async function addLinkedResourceToProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+  const field = resourceIdField(resource.type);
+  const linkedResources = [...(problem.linkedResources || []), { ...resource, linkedAt: new Date().toISOString(), linkedBy: actorId }];
+  const patch: Partial<ProblemStatement> = { linkedResources };
+  if (field) patch[field] = Array.from(new Set([...(problem[field] as string[] | undefined || []), resource.resourceId])) as never;
+  return updateProblemStatement(problem.id, patch, actorId);
+}
+export async function removeLinkedResourceFromProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+  const field = resourceIdField(resource.type);
+  const linkedResources = (problem.linkedResources || []).filter((item) => !(item.type === resource.type && item.resourceId === resource.resourceId));
+  const patch: Partial<ProblemStatement> = { linkedResources };
+  if (field) patch[field] = ((problem[field] as string[] | undefined) || []).filter((id) => id !== resource.resourceId) as never;
+  return updateProblemStatement(problem.id, patch, actorId);
+}
+
+export const getProblemStatementsByCreator = getMyProblemStatements;
 export const getProblemReviews = cache(async (problemStatementId: string) =>
   listCollection<ChallengeReview>(COLLECTIONS.problemReviews, [
     where("problemStatementId", "==", problemStatementId),

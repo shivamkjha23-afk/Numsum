@@ -27,6 +27,10 @@ service cloud.firestore {
         );
     }
     function ownsExisting() { return signedIn() && (resource.data.createdBy == request.auth.uid || resource.data.submittedBy == request.auth.uid || resource.data.submitterId == request.auth.uid || resource.data.author == request.auth.uid || resource.data.userId == request.auth.uid || resource.data.leader == request.auth.uid || hasExistingList('members') || hasExistingList('ownerIds')); }
+    function ownsIncoming() { return signedIn() && (request.resource.data.createdBy == request.auth.uid || request.resource.data.submittedBy == request.auth.uid || request.resource.data.submittedByUserId == request.auth.uid || request.resource.data.submitterId == request.auth.uid || request.resource.data.author == request.auth.uid || request.resource.data.userId == request.auth.uid || request.resource.data.leader == request.auth.uid || hasIncomingList('members') || hasIncomingList('ownerIds')); }
+    function problemSubmitterCreate() { return signedIn() && request.resource.data.submittedByUserId == request.auth.uid && request.resource.data.createdBy == request.auth.uid && request.resource.data.status == 'submitted' && request.resource.data.visibility == 'submitter_only'; }
+    function submitterEditableStatus() { return resource.data.status in ['submitted', 'needs_more_info']; }
+    function submitterProblemPatchOnly() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['title', 'shortDescription', 'detailedDescription', 'summary', 'description', 'problemDescription', 'subCategory', 'affectedProcess', 'problemFrequency', 'urgency', 'estimatedImpact', 'currentWorkaround', 'expectedOutcome', 'availableData', 'attachmentsOrDriveLinks', 'attachments', 'tags', 'contactConsent', 'updatedAt']); }
     function ownsIncoming() { return signedIn() && (request.resource.data.createdBy == request.auth.uid || request.resource.data.submittedBy == request.auth.uid || request.resource.data.submitterId == request.auth.uid || request.resource.data.author == request.auth.uid || request.resource.data.userId == request.auth.uid || request.resource.data.leader == request.auth.uid || hasIncomingList('members') || hasIncomingList('ownerIds')); }
 
     match /users/{uid} {
@@ -54,6 +58,13 @@ service cloud.firestore {
     match /admin_applications/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin(); }
 
     match /problem_statements/{id} {
+      allow read: if platformAdmin()
+        || (resource.data.visibility == 'public' && resource.data.status == 'published')
+        || (signedIn() && resource.data.visibility == 'member_only')
+        || submitterVisible();
+      allow create: if platformAdmin() || problemSubmitterCreate();
+      allow update: if platformAdmin()
+        || (submitterVisible() && submitterEditableStatus() && submitterProblemPatchOnly() && request.resource.data.visibility == resource.data.visibility && request.resource.data.status == resource.data.status);
       allow read: if canReadVisible();
       allow create: if platformAdmin() || (signedIn() && ownsIncoming() && request.resource.data.visibility in ['submitter_only', 'admin_only']);
       allow update: if platformAdmin() || (ownsExisting() && resource.data.visibility == 'submitter_only' && request.resource.data.visibility == resource.data.visibility);

@@ -146,3 +146,61 @@ Use this to show the complete problem workspace in one place while still keeping
 - Submitters can read their own `submitter_only` problems and related onboarding/questionnaire records when ownership fields identify them.
 - Team-only data requires membership fields such as `members`, `ownerIds`, or `teamMemberIds`.
 - New submitted MSME problems are not public by default.
+
+## Problem statement lifecycle and private submission workflow
+
+`problem_statements` is the central operating object for MSME challenge intake. Member-facing labels may say “MSME Challenge” or “Problem Statement,” but repository functions and linked workflows should use `ProblemStatement`.
+
+### Submission defaults
+
+When a completed-profile member submits a problem:
+
+- `status` is set to `submitted`.
+- `adminReviewStatus` is set to `submitted`.
+- `visibility` is set to `submitter_only`.
+- `submittedByUserId`, `submittedByName`, `submittedByEmail`, and `submittedByProfileType` are copied from the member profile.
+- `ownerIds` includes the submitter UID.
+- Linked-resource id arrays are initialized for onboarding sessions, questionnaire responses, SOPs, knowledge assets, research items, pilot tracks, meeting logs, competitions, and discussions.
+
+A submitted problem is therefore readable only by admins/super-admins and the submitter until an admin changes visibility.
+
+### Admin review statuses
+
+Admin review may move a problem through these lifecycle values:
+
+- `submitted`
+- `under_review`
+- `needs_more_info`
+- `onboarded`
+- `structured`
+- `pilot_shortlisted`
+- `competition_candidate`
+- `published`
+- `archived`
+- `rejected`
+
+Only admins can set `visibility: "public"`. Public problem pages and listings must require both `status: "published"` and `visibility: "public"`.
+
+### Access model
+
+- Public visitors: read only `status: "published"` and `visibility: "public"` problems.
+- Completed members: create problems for themselves and read member/public problems where visibility allows.
+- Submitters: read their own `submitter_only` submissions and limited admin notes intended for submitter visibility.
+- Submitters may edit only non-governance problem fields while status is `submitted` or `needs_more_info`.
+- Admins/super-admins: read/write all problem statements, including status, visibility, priority, assignment, internal notes, submitter-visible notes, and linked-resource arrays.
+
+### Linked resources
+
+Future admin enrichment attaches resources through both `linkedResources[]` and typed id arrays:
+
+- `onboardingSessionIds`
+- `questionnaireResponseIds`
+- `sopIds`
+- `knowledgeAssetIds`
+- `researchItemIds`
+- `pilotTrackIds`
+- `meetingLogIds`
+- `competitionIds`
+- `discussionPostIds`
+
+This allows the detail page and future admin workspaces to show the complete operating context for a problem without exposing admin-only resources publicly.
