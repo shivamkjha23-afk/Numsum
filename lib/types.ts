@@ -24,6 +24,7 @@ export type DiscussionType = "general" | "problem" | "research" | "competition" 
 export type ResearchStatus = "draft" | "submitted" | "under_review" | "member_only" | "public" | "published" | "archived" | "rejected";
 export type LinkedResourceType = AssociatedType | "file" | "external_link" | "onboarding_session";
 export type DocumentVersionStatus = "draft" | "under_review" | "published" | "archived";
+export type UserProfileType =| "msme_owner"| "msme_representative"| "industrialist" | "researcher" | "student" | "engineer_professional"| "consultant" | "startup_founder"| "academic_institution"| "technology_provider"| "government_incubator_association"| "investor" | "other";
 
 export interface FirestoreEntity { id: string; }
 export interface TeamMember extends FirestoreEntity { name: string; institution?: string; degree?: string; discipline?: string; designation?: string; bio?: string; photoUrl?: string; linkedinUrl?: string; displayOrder?: number; createdAt?: DateLike; updatedAt?: DateLike; }
