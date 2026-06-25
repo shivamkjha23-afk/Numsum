@@ -222,3 +222,24 @@ export interface OrganizationStats { organizations: number; problemStatements: n
 export interface LabelItem { id: string; label: string; sortOrder?: number; description?: string; }
 export interface IndustrySector extends LabelItem { slug?: string; icon?: string; }
 export interface CommunityStats { members: number; researchers: number; engineers: number; professionals: number; organizations: number; }
+
+export type GovernanceDocumentType = "constitution" | "objective_target" | "governance_manual" | "annual_objective" | "quarterly_objective" | "monthly_target" | "policy" | "appendix" | "resolution" | "meeting_template" | "other";
+export type GovernanceDocumentStatus = "draft" | "under_review" | "approved" | "active" | "superseded" | "archived";
+export type GovernanceVisibility = "admin_only" | "founders_only" | "member_only" | "public";
+export interface GovernanceDocumentSection { id: string; title: string; order: number; content: string; parentSectionId?: string; }
+export interface GovernanceDocument extends FirestoreEntity { title: string; documentType: GovernanceDocumentType; version: number; effectiveDate?: DateLike; status: GovernanceDocumentStatus; visibility: GovernanceVisibility; summary?: string; content?: string; sections?: GovernanceDocumentSection[]; tags?: string[]; createdBy?: string; updatedBy?: string; approvedBy?: string; createdAt?: DateLike; updatedAt?: DateLike; approvedAt?: DateLike; archivedAt?: DateLike; }
+export type GovernanceAmendmentType = "addition" | "modification" | "deletion" | "replacement" | "clarification";
+export type GovernanceAmendmentStatus = "proposed" | "under_review" | "approved" | "rejected" | "withdrawn" | "implemented";
+export interface GovernanceAmendment extends FirestoreEntity { documentId: string; documentTitle?: string; proposedTitle: string; proposedBy?: string; amendmentType: GovernanceAmendmentType; affectedSectionIds?: string[]; currentText?: string; proposedText?: string; rationale?: string; expectedImpact?: string; status: GovernanceAmendmentStatus; reviewNotes?: string; decisionNotes?: string; approvedBy?: string; createdAt?: DateLike; updatedAt?: DateLike; decidedAt?: DateLike; implementedAt?: DateLike; }
+export interface GovernanceDocumentVersion extends FirestoreEntity { documentId: string; version: number; snapshotTitle: string; snapshotContent?: string; snapshotSections?: GovernanceDocumentSection[]; changeSummary?: string; createdBy?: string; createdAt?: DateLike; }
+export type ObjectivePeriodType = "annual" | "quarterly" | "monthly" | "sprint";
+export type ObjectiveStatus = "draft" | "active" | "completed" | "paused" | "archived";
+export type ObjectiveMetricType = "count" | "percentage" | "currency" | "score" | "boolean" | "text";
+export type ObjectiveFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "annual";
+export interface ObjectiveWorkstream { id: string; name: string; description?: string; ownerIds?: string[]; priority?: string; status?: string; targetOutputs?: string[]; expectedEvidence?: string[]; }
+export interface ObjectiveKPI { id: string; name: string; description?: string; metricType: ObjectiveMetricType; targetValue?: string | number | boolean; currentValue?: string | number | boolean; unit?: string; frequency?: ObjectiveFrequency; ownerIds?: string[]; evidenceRequired?: string; status?: string; }
+export interface ObjectiveKRA { id: string; name: string; description?: string; responsibleRole?: string; ownerIds?: string[]; expectedOutcome?: string; evidenceRequired?: string; status?: string; }
+export interface ObjectiveTarget extends FirestoreEntity { title: string; periodType: ObjectivePeriodType; periodLabel?: string; startDate?: DateLike; endDate?: DateLike; objectiveSummary?: string; strategicTheme?: string; status: ObjectiveStatus; ownerIds?: string[]; workstreams?: ObjectiveWorkstream[]; kpis?: ObjectiveKPI[]; kras?: ObjectiveKRA[]; progressPercent?: number; reviewNotes?: string; createdBy?: string; updatedBy?: string; approvedBy?: string; createdAt?: DateLike; updatedAt?: DateLike; approvedAt?: DateLike; }
+export type GovernanceAuditEntityType = "governance_document" | "amendment" | "objective_target";
+export type GovernanceAuditAction = "created" | "updated" | "submitted_for_review" | "approved" | "activated" | "archived" | "amendment_proposed" | "amendment_approved" | "amendment_rejected" | "amendment_implemented" | "objective_progress_updated";
+export interface GovernanceAuditEvent extends FirestoreEntity { entityType: GovernanceAuditEntityType; entityId: string; action: GovernanceAuditAction; actorUserId?: string; actorName?: string; description?: string; metadata?: Record<string, unknown>; createdAt?: DateLike; }

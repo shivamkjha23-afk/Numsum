@@ -115,8 +115,13 @@ service cloud.firestore {
     match /organizations/{id} { allow read: if true; allow create: if signedIn(); allow update, delete: if platformAdmin(); }
     match /team_members/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
     match /questionnaire_templates/{id} { allow read, create, update, delete: if platformAdmin(); }
-    match /constitution_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
-    match /objective_target_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /constitution_documents/{id} { allow read, write: if platformAdmin(); }
+    match /objective_target_documents/{id} { allow read, write: if platformAdmin(); }
+    match /governance_documents/{id} { allow read, write: if platformAdmin(); }
+    match /governance_document_versions/{id} { allow read, write: if platformAdmin(); }
+    match /governance_amendments/{id} { allow read, write: if platformAdmin(); }
+    match /objective_targets/{id} { allow read, write: if platformAdmin(); }
+    match /governance_audit_events/{id} { allow read, write: if platformAdmin(); }
     match /internal_threads/{id} { allow read, write: if platformAdmin(); }
     match /career_openings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /career_applications/{id} { allow create: if true; allow read, update, delete: if platformAdmin(); }
