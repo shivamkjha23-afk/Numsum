@@ -274,3 +274,9 @@ Every SOP must include `problemStatementId`. SOPs store `title`, objective, scop
 Lifecycle: `draft` → `review` → `approved` → `published`; SOPs may be archived. SOP writes are admin-only.
 
 Both collections create a linked resource on the parent `problem_statements` document and emit workspace timeline events when created, updated, approved, published, or archived.
+
+## Research Repository (`research_posts` / `ResearchItem`)
+
+ResearchItem records support the Prompt 5C research repository, global technology watch, and MSME/startup case-study library. Key fields include `problemStatementId`, `generalResearch`, `title`, `abstract`, `researchType`, source metadata, publication metadata, `authors`, `organizationOrInstitution`, `country`, `industrySegment`, `problemCategory`, `technologyArea`, `keywords`, `summary`, `keyFindings`, `practicalRelevance`, `relevanceToMSME`, `relevanceToProblem`, `possibleApplications`, `implementationDifficulty`, `costImplication`, `maturityLevel`, `evidenceStrength`, `recommendedAction`, links, tags, status/visibility, submitter/reviewer/approver audit fields, and timestamps.
+
+Technology Watch uses the same collection with watch fields such as `watchPriority`, `nextReviewDate`, and `reviewedInMeetingId`. Case studies use `companyName`, `initialChallenge`, `interventionOrInnovation`, `growthJourney`, `measurableImpact`, and `lessonsForIndianMSMEs`.

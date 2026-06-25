@@ -56,3 +56,9 @@ Knowledge, SOP, Research, Pilot, Competition, and Discussion modules should plug
 The Knowledge tab now supports linked Knowledge Asset creation, member suggestions, admin status/visibility updates, archive actions, source/Drive links, tags, category, and metadata display. Non-admin viewers only see assets allowed by workspace visibility and publication state.
 
 The SOP tab now supports admin-only SOP creation with versioning fields, structured steps, requirements, quality checks, status/visibility management, and archive actions. Non-admin viewers only see approved/published SOPs allowed by visibility.
+
+## Research tab
+
+The Problem Workspace Research tab lists linked ResearchItems and displays type, source, country, maturity level, evidence strength, recommended action, source/drive links, tags, and practical relevance. Admins can add linked research, link existing general research, update status and visibility, archive items, and use repository-level conversion actions. Submitters and members only see items permitted by visibility; public users only see public published research linked to public problems.
+
+Research timeline events include `research_added`, `research_updated`, `research_linked`, `research_approved`, `research_published`, `research_archived`, and `research_converted_to_knowledge`.

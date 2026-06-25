@@ -64,6 +64,7 @@ import type {
   QuestionnaireResponse,
   QuestionnaireTemplate,
   ResearchPost,
+  ResearchItem,
   SOPDocument,
   SuccessStory,
   TestimonialRating,
@@ -808,8 +809,17 @@ export async function createResearchPost(
         data.supportingFolderLink,
         ...(data.externalReferences || []),
       ].filter(Boolean),
-    status: "submitted",
-    visibility: "private",
+    status: "under_review",
+    visibility: "admin_only",
+    submittedBy: data.submittedBy || data.createdBy || data.author,
+    researchType: data.researchType || "other",
+    generalResearch: !problemStatementId,
+    isGeneralResearch: !problemStatementId,
+    recommendedAction: data.recommendedAction || (problemStatementId ? "discuss" : "link_to_problem"),
+    implementationDifficulty: data.implementationDifficulty || "unknown",
+    costImplication: data.costImplication || "unknown",
+    maturityLevel: data.maturityLevel || "unknown",
+    evidenceStrength: data.evidenceStrength || "unknown",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -831,7 +841,7 @@ export async function createResearchPost(
     action: "research_submitted",
     collectionName: COLLECTIONS.researchPosts,
     documentId: created.id,
-    after: { status: "submitted", visibility: "private", problemStatementId },
+    after: { status: "under_review", visibility: "admin_only", problemStatementId },
   });
   if (data.createdBy || data.author)
     await createNotification({
@@ -862,8 +872,61 @@ export async function createResearchPost(
     data.title,
     problemStatementId,
   );
+
+  if (problemStatementId) {
+    await linkCreatedResource(problemStatementId, { type: "research_item", resourceType: "research_item", collection: COLLECTIONS.researchPosts, resourceId: created.id, title: data.title, description: data.summary || data.abstract, url: data.sourceLink || data.driveLink || data.documentLink || data.researchLink, visibility: "admin_only", status: "under_review" }, data.createdBy || data.author || "");
+    await updateRecord(COLLECTIONS.problemStatements, problemStatementId, { researchItemIds: arrayUnion(created.id) });
+    await createProblemTimelineEvent(problemStatementId, "research_added", data.title || "Research added", data.createdBy || data.author || "", { resourceId: created.id }, "admin_only");
+  }
   return created;
 }
+
+export const createResearchItem = createResearchPost as (data: Omit<ResearchItem, "id" | "createdAt" | "updatedAt" | "status" | "visibility">) => ReturnType<typeof createResearchPost>;
+export async function updateResearchItem(id: string, patch: Partial<ResearchItem>, actorId = "") {
+  const existing = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
+  await updateRecord(COLLECTIONS.researchPosts, id, { ...patch, updatedAt: serverTimestamp() });
+  const problemStatementId = patch.problemStatementId || existing?.problemStatementId;
+  if (problemStatementId) await createProblemTimelineEvent(problemStatementId, "research_updated", patch.title || existing?.title || "Research updated", actorId, { resourceId: id }, patch.visibility || existing?.visibility || "admin_only");
+}
+export const getResearchItemById = cache(async (id: string) => getRecord<ResearchItem>(COLLECTIONS.researchPosts, id));
+export const getResearchItemsForProblem = cache(async (problemStatementId: string) => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("problemStatementId", "==", problemStatementId), limit(100)]));
+export const getGeneralResearchItems = cache(async () => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("generalResearch", "==", true), limit(100)]).catch(() => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [limit(100)]).then((rows) => rows.filter((r) => !r.problemStatementId))));
+export const getMyResearchItems = cache(async (userId: string) => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("createdBy", "==", userId), limit(100)]));
+export const getAdminResearchItems = cache(async () => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [orderBy("createdAt", "desc"), limit(300)]));
+export const getPublicResearchItems = cache(async () => (await listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("visibility", "==", "public"), limit(200)])).filter((r) => ["approved", "published", "public"].includes(r.status || "")));
+export async function updateResearchItemStatus(id: string, status: ResearchItem["status"], actorId = "") {
+  const existing = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
+  const patch: Partial<ResearchItem> = { status, reviewedBy: actorId, reviewedAt: serverTimestamp() as never };
+  if (status === "approved") patch.approvedBy = actorId;
+  if (status === "published") patch.publishedAt = serverTimestamp() as never;
+  await updateResearchItem(id, patch, actorId);
+  if (existing?.problemStatementId && status === "approved") await createProblemTimelineEvent(existing.problemStatementId, "research_approved", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only");
+  if (existing?.problemStatementId && status === "published") await createProblemTimelineEvent(existing.problemStatementId, "research_published", existing.title, actorId, { resourceId: id }, existing.visibility || "public");
+}
+export async function updateResearchItemVisibility(id: string, visibility: ResearchItem["visibility"], actorId = "") { return updateResearchItem(id, { visibility }, actorId); }
+export async function archiveResearchItem(id: string, actorId = "") { const existing = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id); await updateResearchItem(id, { status: "archived", recommendedAction: "archive" }, actorId); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "research_archived", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only"); }
+export async function linkResearchItemToProblem(id: string, problemStatementId: string, actorId = "") {
+  const item = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
+  if (!item) throw new Error("Research item not found");
+  await updateRecord(COLLECTIONS.researchPosts, id, { problemStatementId, associatedProblemId: problemStatementId, generalResearch: false, isGeneralResearch: false, recommendedAction: "discuss" });
+  await linkCreatedResource(problemStatementId, { type: "research_item", resourceType: "research_item", collection: COLLECTIONS.researchPosts, resourceId: id, title: item.title, description: item.summary || item.abstract, url: item.sourceLink || item.driveLink || item.documentLink || item.researchLink, visibility: item.visibility || "admin_only", status: (item.status || "under_review") as PlatformStatus }, actorId);
+  await updateRecord(COLLECTIONS.problemStatements, problemStatementId, { researchItemIds: arrayUnion(id) });
+  await createProblemTimelineEvent(problemStatementId, "research_linked", item.title || "Research linked", actorId, { resourceId: id }, item.visibility || "admin_only");
+}
+export async function unlinkResearchItemFromProblem(id: string, actorId = "") {
+  const item = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
+  if (item?.problemStatementId) await updateRecord(COLLECTIONS.problemStatements, item.problemStatementId, { researchItemIds: arrayRemove(id) });
+  await updateRecord(COLLECTIONS.researchPosts, id, { problemStatementId: null, associatedProblemId: null, generalResearch: true, isGeneralResearch: true, recommendedAction: "link_to_problem" });
+}
+export async function convertResearchItemToKnowledgeAsset(id: string, actorId = "") {
+  const item = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
+  if (!item || !item.problemStatementId) throw new Error("Research must be linked to a problem before conversion.");
+  const asset = await createKnowledgeAsset({ problemStatementId: item.problemStatementId, title: item.title, shortDescription: item.summary || item.abstract || item.practicalRelevance || "", detailedContent: [item.keyFindings, item.practicalRelevance, item.relevanceToMSME, item.relevanceToProblem].filter(Boolean).join("\n\n"), category: item.researchType === "startup_case_study" ? "startup_success_story" : item.researchType === "msme_success_story" ? "msme_success_story" : "report", sourceType: "research_derived", sourceName: item.sourceName, sourceLink: item.sourceLink, driveLink: item.driveLink, attachmentLinks: item.attachmentLinks, tags: item.tags || item.keywords, industrySegment: item.industrySegment, problemCategory: item.problemCategory, relevanceToProblem: item.relevanceToProblem || item.practicalRelevance, keyTakeaways: item.keyFindings ? item.keyFindings.split("\n").filter(Boolean) : [], sourceId: item.id, sourceResearchId: item.id, createdBy: actorId || item.createdBy || "system", status: "under_review", visibility: "admin_only" });
+  await updateResearchItem(id, { recommendedAction: "convert_to_knowledge" }, actorId);
+  await createProblemTimelineEvent(item.problemStatementId, "research_converted_to_knowledge", item.title || "Research converted to knowledge", actorId, { resourceId: id, knowledgeAssetId: asset.id }, "admin_only");
+  return asset;
+}
+
 export async function createCollaborationRequest(
   data: Omit<CollaborationRequest, "id" | "createdAt" | "updatedAt" | "status">,
 ) {
@@ -1736,7 +1799,7 @@ export async function upsertConstitutionDocument(id: string, data: Omit<Constitu
 export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
 
 export async function getAdminProblemWorkspaceMetrics() {
-  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents, knowledgeAssets, knowledgeUnderReview, knowledgePublished, sopDocuments, sopDraftReview, sopApprovedPublished] = await Promise.all([
+  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents, knowledgeAssets, knowledgeUnderReview, knowledgePublished, sopDocuments, sopDraftReview, sopApprovedPublished, researchItems, researchUnderReview, researchPublished, technologyWatchItems, highPriorityWatchItems, caseStudies, linkedResearchItems, unlinkedResearchItems] = await Promise.all([
     getCountFromServer(ref(COLLECTIONS.problemStatements)),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "submitted")])),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "under_review")])),
@@ -1754,6 +1817,14 @@ export async function getAdminProblemWorkspaceMetrics() {
     getCountFromServer(ref(COLLECTIONS.sopDocuments)),
     getCountFromServer(queryFor(COLLECTIONS.sopDocuments, [where("status", "in", ["draft", "review"])])),
     getCountFromServer(queryFor(COLLECTIONS.sopDocuments, [where("status", "in", ["approved", "published"])])),
+    getCountFromServer(ref(COLLECTIONS.researchPosts)),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("status", "==", "under_review")])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("status", "in", ["approved", "published"])])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("researchType", "in", ["technology_trend", "patent", "startup_case_study", "product_innovation", "process_innovation", "research_paper"])])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("watchPriority", "in", ["high", "strategic"])])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("researchType", "in", ["startup_case_study", "msme_success_story"])])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("generalResearch", "==", false)])),
+    getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("generalResearch", "==", true)])),
   ]);
   return {
     totalProblems: totalProblems.data().count,
@@ -1773,6 +1844,14 @@ export async function getAdminProblemWorkspaceMetrics() {
     sopDocuments: sopDocuments.data().count,
     sopDraftReview: sopDraftReview.data().count,
     sopApprovedPublished: sopApprovedPublished.data().count,
+    researchItems: researchItems.data().count,
+    researchUnderReview: researchUnderReview.data().count,
+    researchPublished: researchPublished.data().count,
+    technologyWatchItems: technologyWatchItems.data().count,
+    highPriorityWatchItems: highPriorityWatchItems.data().count,
+    caseStudies: caseStudies.data().count,
+    linkedResearchItems: linkedResearchItems.data().count,
+    unlinkedResearchItems: unlinkedResearchItems.data().count,
   };
 }
 
