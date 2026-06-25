@@ -280,3 +280,13 @@ Both collections create a linked resource on the parent `problem_statements` doc
 ResearchItem records support the Prompt 5C research repository, global technology watch, and MSME/startup case-study library. Key fields include `problemStatementId`, `generalResearch`, `title`, `abstract`, `researchType`, source metadata, publication metadata, `authors`, `organizationOrInstitution`, `country`, `industrySegment`, `problemCategory`, `technologyArea`, `keywords`, `summary`, `keyFindings`, `practicalRelevance`, `relevanceToMSME`, `relevanceToProblem`, `possibleApplications`, `implementationDifficulty`, `costImplication`, `maturityLevel`, `evidenceStrength`, `recommendedAction`, links, tags, status/visibility, submitter/reviewer/approver audit fields, and timestamps.
 
 Technology Watch uses the same collection with watch fields such as `watchPriority`, `nextReviewDate`, and `reviewedInMeetingId`. Case studies use `companyName`, `initialChallenge`, `interventionOrInnovation`, `growthJourney`, `measurableImpact`, and `lessonsForIndianMSMEs`.
+
+## Pilot Tracker and Implementation Validation
+
+- `pilot_tracks`: problem-linked implementation pilots. Required linkage: `problemStatementId`. Fields include objective, problem summary, proposed solution, intervention type, status, visibility, priority, risk, implementation difficulty, cost/savings estimates, baseline/target/current/final values, evidence links, lessons learned, next steps, safe summaries, and admin internal notes.
+- `pilot_milestones`: `pilotTrackId`, `problemStatementId`, title, description, target/completed dates, status, owner, evidence, and notes.
+- `pilot_updates`: `pilotTrackId`, `problemStatementId`, update date, progress percent, current metrics, blockers, decisions, action items, evidence, and visibility.
+- `pilot_metrics`: metric name/unit, baseline, target, current, final value, measurement method, improvement direction, and evidence link.
+- `success_stories`: admin-created official impact stories linked to a problem and pilot. Public reads require `visibility = public` and `status = published`.
+
+Pilot timeline event types: `pilot_created`, `pilot_updated`, `pilot_status_changed`, `pilot_started`, `pilot_milestone_added`, `pilot_milestone_completed`, `pilot_update_added`, `pilot_metric_added`, `pilot_completed`, `pilot_published`, and `success_story_created`.

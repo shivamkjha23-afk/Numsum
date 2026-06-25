@@ -62,3 +62,7 @@ The SOP tab now supports admin-only SOP creation with versioning fields, structu
 The Problem Workspace Research tab lists linked ResearchItems and displays type, source, country, maturity level, evidence strength, recommended action, source/drive links, tags, and practical relevance. Admins can add linked research, link existing general research, update status and visibility, archive items, and use repository-level conversion actions. Submitters and members only see items permitted by visibility; public users only see public published research linked to public problems.
 
 Research timeline events include `research_added`, `research_updated`, `research_linked`, `research_approved`, `research_published`, `research_archived`, and `research_converted_to_knowledge`.
+
+## Pilot Tracker tab
+
+The workspace Pilots tab now supports admin creation of problem-linked pilots, status and visibility updates, active/completed indicators, milestone/update/metric entry points, evidence links, lessons learned, next steps, and links to `/pilots/[id]`. Submitters only see linked pilot summaries allowed by visibility, members see member/public pilots, and public users see public completed/published pilot summaries. Admin-only internal notes are not displayed outside admin views.
