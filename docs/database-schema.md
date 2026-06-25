@@ -320,3 +320,25 @@ Prompt 6B adds private execution collections. They are never public-readable; ad
 - `evidence_records`: internal evidence links for objectives, work items, action items, meetings, problem statements, knowledge assets, SOPs, research items, pilots, and governance documents.
 
 Security rules added for these collections enforce admin write authority, assigned-member read access for work/action items and meetings, limited member status/evidence updates, admin-only reviews and decisions, and no public execution reads.
+
+## Contribution Tracking, Evidence, Recognition, and Review
+
+Prompt 6C adds these Firestore collections:
+
+### `contribution_records`
+Tracks who contributed what, where it is connected, which evidence supports it, and how admins reviewed it. Key fields include `contributorUserId`, `contributionTitle`, `contributionCategory`, `contributionType`, `relatedEntityType`, `relatedEntityId`, `objectiveTargetId`, `workstreamId`, `evidenceLinks`, `evidenceRecordIds`, `qualityRating`, `impactRating`, `alignmentRating`, `reviewStatus`, `visibility`, `reviewNotes`, `recognitionNotes`, `suggestedScore`, and `approvedScore`.
+
+### `contribution_score_rules`
+Stores illustrative internal scoring guidance by contribution type/category. These rules include `baseScore`, `minScore`, `maxScore`, `evidenceRequired`, `reviewRequired`, and `active`. Scores are governance review aids only and are not automatic equity entitlement.
+
+### `contribution_review_cycles`
+Defines monthly, quarterly, annual, or special contribution review windows with reviewers, contributors, summary, decisions, and completion metadata.
+
+### `contributor_review_summaries`
+Stores per-contributor summaries for a review cycle, including totals, accepted/rejected counts, approved score totals, category breakdown, strongest contributions, improvement areas, reviewer notes, recognition recommendation, and final status.
+
+### `recognition_records`
+Stores appreciation, certificates, featured contributor records, monthly/project recognition, leadership responsibility, and special mentions. Visibility supports `admin_only`, `contributor_only`, `internal_member`, and `public`, but public display is intentionally deferred.
+
+### `contribution_claims`
+Allows members to claim contribution work with related entity references and evidence links. Admins can review claims and convert accepted claims into contribution records.
