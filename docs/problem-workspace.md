@@ -50,3 +50,9 @@ Knowledge, SOP, Research, Pilot, Competition, and Discussion modules should plug
 3. Calling `addLinkedResourceToProblem` with a matching resource type.
 4. Creating a timeline event for meaningful state transitions.
 5. Respecting `visibility` consistently.
+
+## Prompt 5B: Knowledge and SOP tabs
+
+The Knowledge tab now supports linked Knowledge Asset creation, member suggestions, admin status/visibility updates, archive actions, source/Drive links, tags, category, and metadata display. Non-admin viewers only see assets allowed by workspace visibility and publication state.
+
+The SOP tab now supports admin-only SOP creation with versioning fields, structured steps, requirements, quality checks, status/visibility management, and archive actions. Non-admin viewers only see approved/published SOPs allowed by visibility.

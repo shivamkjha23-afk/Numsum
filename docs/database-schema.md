@@ -260,3 +260,17 @@ Lightweight workspace files and external references.
 ### Visibility rules
 
 Admins can read/write all workspace records. Submitters can read records linked to their own problem when the record visibility is `submitter_only`, `member_only`, or `public`. Members can read `member_only` and `public` records. Public users can read only `public` records. Internal admin notes must not be copied into public or submitter-visible fields.
+
+## Problem-linked Knowledge Assets and SOP Documents
+
+### `knowledge_assets`
+Every Knowledge Asset must include `problemStatementId`; repository creation also mirrors it to `linkedProblemStatementId` for legacy readers. Assets capture reusable institutional learning with `title`, `shortDescription`, `detailedContent`, `category`, `sourceType`, source/Drive/attachment links, `tags`, industry and problem category, relevance, key takeaways, lifecycle status, visibility, submitter/creator/reviewer/approver metadata, and timestamps.
+
+Lifecycle: `draft` or member `under_review` → `approved` → `published`; assets may be `rejected` or `archived`. Member contributions default to `under_review` and `admin_only`; only admins publish or make assets public.
+
+### `sop_documents`
+Every SOP must include `problemStatementId`. SOPs store `title`, objective, scope, applicability, process area, industry, version/SOP number, structured `steps`, requirements, deliverables, acceptance criteria, safety/quality checks, standards, links, tags, status, visibility, reviewer/approver metadata, and timestamps.
+
+Lifecycle: `draft` → `review` → `approved` → `published`; SOPs may be archived. SOP writes are admin-only.
+
+Both collections create a linked resource on the parent `problem_statements` document and emit workspace timeline events when created, updated, approved, published, or archived.

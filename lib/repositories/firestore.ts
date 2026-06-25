@@ -614,7 +614,7 @@ export const getKnowledgeAssets = cache(async (publicOnly = true) => {
       ? [where("visibility", "==", "public"), limit(100)]
       : [orderBy("createdAt", "desc"), limit(100)],
   );
-  return publicOnly ? byCreatedAtDesc(rows) : rows;
+  return publicOnly ? byCreatedAtDesc(rows).filter((a) => ["approved", "published"].includes(a.status || "")) : rows;
 });
 export const getCommunityPosts = cache(async (filter?: string) => {
   traceRepositoryRead(
@@ -1551,63 +1551,57 @@ export async function scoreCompetitionSubmission(
     after: { score, rank, winner },
   });
 }
-export async function createKnowledgeAsset(
-  data: Omit<
-    KnowledgeAsset,
-    "id" | "createdAt" | "updatedAt" | "status" | "visibility" | "description"
-  > & { description?: string },
-) {
-  const created = await createRecord<KnowledgeAsset>(
-    COLLECTIONS.knowledgeAssets,
-    {
-      ...data,
-      description: data.description || data.summary || "",
-      references: data.references || [],
-      status: "draft",
-      visibility: "private",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    } as WithFieldValue<Omit<KnowledgeAsset, "id">>,
-  );
+export async function createKnowledgeAsset(data: Omit<KnowledgeAsset, "id" | "createdAt" | "updatedAt">) {
+  if (!data.problemStatementId && !data.linkedProblemStatementId) throw new Error("Knowledge assets must be linked to a problem statement.");
+  const problemStatementId = data.problemStatementId || data.linkedProblemStatementId || "";
+  const created = await createRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, {
+    ...data,
+    problemStatementId,
+    linkedProblemStatementId: problemStatementId,
+    shortDescription: data.shortDescription || data.description || data.summary || "",
+    detailedContent: data.detailedContent || data.content || "",
+    description: data.description || data.shortDescription || data.summary || "",
+    content: data.content || data.detailedContent || "",
+    attachmentLinks: data.attachmentLinks || data.references || [],
+    status: data.status || "under_review",
+    visibility: data.visibility || "admin_only",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  } as WithFieldValue<Omit<KnowledgeAsset, "id">>);
   await bumpStats("knowledgeCount");
-  await routeToAdminInbox({
-    type: "knowledge_submission",
-    title: data.title,
-    description: data.summary || data.description,
-    sourceCollection: COLLECTIONS.knowledgeAssets,
-    sourceId: created.id,
-    createdBy: data.createdBy,
-  });
+  await linkCreatedResource(problemStatementId, { type: "knowledge_asset", resourceType: "knowledge_asset", collection: COLLECTIONS.knowledgeAssets, resourceId: created.id, title: data.title, description: data.shortDescription || data.description || data.summary, url: data.sourceLink || data.driveLink || data.documentLink, visibility: data.visibility || "admin_only", status: (data.status || "under_review") as PlatformStatus }, data.createdBy || data.submittedBy || "");
+  await createProblemTimelineEvent(problemStatementId, "knowledge_added", data.title || "Knowledge asset added", data.createdBy || data.submittedBy || "", { resourceId: created.id }, data.visibility || "admin_only");
+  await routeToAdminInbox({ type: "knowledge_submission", title: data.title, description: data.shortDescription || data.description || data.summary, sourceCollection: COLLECTIONS.knowledgeAssets, sourceId: created.id, createdBy: data.createdBy });
   return created;
 }
-export async function publishKnowledgeAsset(
-  asset: KnowledgeAsset,
-  reviewerId: string,
-) {
-  await updateRecord(COLLECTIONS.knowledgeAssets, asset.id, {
-    status: "published",
-    visibility: "public",
-  });
-  await logAudit({
-    actorId: reviewerId,
-    action: "knowledge_published",
-    collectionName: COLLECTIONS.knowledgeAssets,
-    documentId: asset.id,
-    before: { status: asset.status, visibility: asset.visibility },
-    after: { status: "published", visibility: "public" },
-  });
-  await notifyAdmins(
-    "knowledge_update",
-    "Knowledge asset published",
-    asset.title,
-  );
+export async function updateKnowledgeAsset(id: string, patch: Partial<KnowledgeAsset>, actorId = "") {
+  const existing = await getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id);
+  await updateRecord(COLLECTIONS.knowledgeAssets, id, { ...patch, updatedAt: serverTimestamp() });
+  if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "knowledge_updated", patch.title || existing.title || "Knowledge asset updated", actorId, { resourceId: id }, patch.visibility || existing.visibility || "admin_only");
 }
+export const getKnowledgeAssetsForProblem = cache(async (problemStatementId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("problemStatementId", "==", problemStatementId), limit(50)]));
+export const getMyKnowledgeAssets = cache(async (userId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("createdBy", "==", userId), limit(100)]));
+export const getPublicKnowledgeAssets = cache(async () => (await listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("visibility", "==", "public"), limit(100)])).filter((a) => ["approved", "published"].includes(a.status || "")));
+export const getAdminKnowledgeAssets = cache(async () => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [orderBy("createdAt", "desc"), limit(200)]));
+export async function updateKnowledgeAssetStatus(id: string, status: KnowledgeAsset["status"], actorId = "") {
+  const existing = await getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id);
+  const patch: Partial<KnowledgeAsset> = { status, reviewedBy: actorId, reviewedAt: serverTimestamp() as never };
+  if (status === "approved") patch.approvedBy = actorId;
+  if (status === "published") patch.publishedAt = serverTimestamp() as never;
+  await updateKnowledgeAsset(id, patch, actorId);
+  if (existing?.problemStatementId && status === "approved") await createProblemTimelineEvent(existing.problemStatementId, "knowledge_approved", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only");
+  if (existing?.problemStatementId && status === "published") await createProblemTimelineEvent(existing.problemStatementId, "knowledge_published", existing.title, actorId, { resourceId: id }, existing.visibility || "public");
+}
+export async function updateKnowledgeAssetVisibility(id: string, visibility: KnowledgeAsset["visibility"], actorId = "") { return updateKnowledgeAsset(id, { visibility }, actorId); }
+export async function archiveKnowledgeAsset(id: string, actorId = "") { const existing = await getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id); await updateKnowledgeAsset(id, { status: "archived" }, actorId); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "knowledge_archived", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only"); }
+export async function publishKnowledgeAsset(asset: KnowledgeAsset, reviewerId: string) { await updateKnowledgeAssetStatus(asset.id, "published", reviewerId); await updateKnowledgeAssetVisibility(asset.id, "public", reviewerId); }
 export async function createKnowledgeFromWinningSolution(
   competition: Competition,
   submission: CompetitionSubmission,
   reviewerId: string,
 ) {
   return createKnowledgeAsset({
+    problemStatementId: competition.sourceProblemId || competition.sourceId || "",
     title: submission.title,
     summary: `Winning solution for ${competition.title}`,
     content: submission.description,
@@ -1683,8 +1677,23 @@ export async function getQuestionnaireResponsesForProblem(problemStatementId: st
   return listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]);
 }
 export async function createSOPDocument(data: Omit<SOPDocument, "id" | "createdAt" | "updatedAt">) {
-  return createRecord<SOPDocument>(COLLECTIONS.sopDocuments, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SOPDocument, "id">>);
+  if (!data.problemStatementId) throw new Error("SOP documents must be linked to a problem statement.");
+  const created = await createRecord<SOPDocument>(COLLECTIONS.sopDocuments, { ...data, version: data.version || 1, steps: data.steps || [], status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SOPDocument, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "sop_document", resourceType: "sop_document", collection: COLLECTIONS.sopDocuments, resourceId: created.id, title: data.title, description: data.objective || data.summary, url: data.driveLink || data.documentLink, visibility: data.visibility || "admin_only", status: (data.status || "draft") as PlatformStatus }, data.createdBy || "");
+  await createProblemTimelineEvent(data.problemStatementId, "sop_added", data.title || "SOP added", data.createdBy || "", { resourceId: created.id }, data.visibility || "admin_only");
+  return created;
 }
+export async function updateSOPDocument(id: string, patch: Partial<SOPDocument>, actorId = "") { const existing = await getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id); await updateRecord(COLLECTIONS.sopDocuments, id, { ...patch, updatedAt: serverTimestamp() }); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "sop_updated", patch.title || existing.title || "SOP updated", actorId, { resourceId: id }, patch.visibility || existing.visibility || "admin_only"); }
+export const getSOPDocumentById = cache(async (id: string) => getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id));
+export const getSOPDocumentsForProblem = cache(async (problemStatementId: string) => listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("problemStatementId", "==", problemStatementId), limit(50)]));
+export const getMySOPDocuments = cache(async (userId: string) => listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("createdBy", "==", userId), limit(100)]));
+export const getPublicSOPDocuments = cache(async () => (await listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("visibility", "==", "public"), limit(100)])).filter((s) => ["approved", "published"].includes(s.status || "")));
+export const getAdminSOPDocuments = cache(async () => listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [orderBy("createdAt", "desc"), limit(200)]));
+export async function updateSOPStatus(id: string, status: SOPDocument["status"], actorId = "") { const existing = await getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id); const patch: Partial<SOPDocument> = { status }; if (status === "approved") { patch.approvedBy = actorId; patch.approvedAt = serverTimestamp() as never; } if (status === "published") patch.publishedAt = serverTimestamp() as never; await updateSOPDocument(id, patch, actorId); if (existing?.problemStatementId && status === "approved") await createProblemTimelineEvent(existing.problemStatementId, "sop_approved", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only"); if (existing?.problemStatementId && status === "published") await createProblemTimelineEvent(existing.problemStatementId, "sop_published", existing.title, actorId, { resourceId: id }, existing.visibility || "public"); }
+export async function updateSOPVisibility(id: string, visibility: SOPDocument["visibility"], actorId = "") { return updateSOPDocument(id, { visibility }, actorId); }
+export async function archiveSOPDocument(id: string, actorId = "") { const existing = await getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id); await updateSOPDocument(id, { status: "archived" }, actorId); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "sop_archived", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only"); }
+export async function createNewSOPVersion(id: string, actorId = "") { const existing = await getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id); if (!existing) throw new Error("SOP not found"); return createSOPDocument({ ...existing, title: `${existing.title} v${(existing.version || 1) + 1}`, version: (existing.version || 1) + 1, status: "draft", visibility: "admin_only", createdBy: actorId || existing.createdBy, problemStatementId: existing.problemStatementId }); }
+
 export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt" | "updatedAt">) {
   return createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
 }
@@ -1727,7 +1736,7 @@ export async function upsertConstitutionDocument(id: string, data: Omit<Constitu
 export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
 
 export async function getAdminProblemWorkspaceMetrics() {
-  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents] = await Promise.all([
+  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents, knowledgeAssets, knowledgeUnderReview, knowledgePublished, sopDocuments, sopDraftReview, sopApprovedPublished] = await Promise.all([
     getCountFromServer(ref(COLLECTIONS.problemStatements)),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "submitted")])),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "under_review")])),
@@ -1739,6 +1748,12 @@ export async function getAdminProblemWorkspaceMetrics() {
     getCountFromServer(ref(COLLECTIONS.meetingLogs)),
     getCountFromServer(ref(COLLECTIONS.fileLinks)),
     getCountFromServer(ref(COLLECTIONS.timelineEvents)),
+    getCountFromServer(ref(COLLECTIONS.knowledgeAssets)),
+    getCountFromServer(queryFor(COLLECTIONS.knowledgeAssets, [where("status", "==", "under_review")])),
+    getCountFromServer(queryFor(COLLECTIONS.knowledgeAssets, [where("status", "==", "published")])),
+    getCountFromServer(ref(COLLECTIONS.sopDocuments)),
+    getCountFromServer(queryFor(COLLECTIONS.sopDocuments, [where("status", "in", ["draft", "review"])])),
+    getCountFromServer(queryFor(COLLECTIONS.sopDocuments, [where("status", "in", ["approved", "published"])])),
   ]);
   return {
     totalProblems: totalProblems.data().count,
@@ -1752,6 +1767,12 @@ export async function getAdminProblemWorkspaceMetrics() {
     meetingLogs: meetingLogs.data().count,
     fileLinks: fileLinks.data().count,
     timelineEvents: timelineEvents.data().count,
+    knowledgeAssets: knowledgeAssets.data().count,
+    knowledgeUnderReview: knowledgeUnderReview.data().count,
+    knowledgePublished: knowledgePublished.data().count,
+    sopDocuments: sopDocuments.data().count,
+    sopDraftReview: sopDraftReview.data().count,
+    sopApprovedPublished: sopApprovedPublished.data().count,
   };
 }
 
@@ -2005,7 +2026,7 @@ export const getKnowledgeBySource = cache(
 );
 export const getKnowledgeByProblem = cache(async (problemStatementId: string) =>
   listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [
-    where("linkedProblemStatementId", "==", problemStatementId),
+    where("problemStatementId", "==", problemStatementId),
     limit(50),
   ]),
 );
