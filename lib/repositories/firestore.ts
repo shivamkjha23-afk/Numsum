@@ -56,6 +56,7 @@ import type {
   Notification,
   Organization,
   PrivateCollaborationGroup,
+  PlatformStatus,
   ProblemOnboardingSession,
   ProblemStatement,
   QuestionnaireResponse,
@@ -539,6 +540,23 @@ export async function getQuestionnaireByType(category: string) {
     [where("category", "==", category), limit(1)],
   );
   return rows[0] || null;
+}
+export async function createQuestionnaireTemplate(data: Omit<QuestionnaireTemplate, "id" | "createdAt" | "updatedAt">) {
+  const sections = data.sections || [{ id: "default", title: data.title || data.name || "Questions", description: data.description || "", order: 1, questions: data.questions || [] }];
+  return createRecord<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, { ...data, title: data.title || data.name || data.category, name: data.name || data.title || data.category, questions: data.questions || sections.flatMap((section) => section.questions), sections, status: data.status || "draft", visibility: "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireTemplate, "id">>);
+}
+export async function updateQuestionnaireTemplate(id: string, patch: Partial<QuestionnaireTemplate>) {
+  await updateRecord(COLLECTIONS.questionnaireTemplates, id, { ...patch, updatedAt: serverTimestamp() });
+}
+export const getActiveQuestionnaireTemplates = cache(async () => {
+  const rows = await listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [where("status", "==", "active"), limit(100)]).catch(() => []);
+  return rows.length ? rows : getQuestionnaireTemplates();
+});
+export async function getQuestionnaireTemplateById(id: string) {
+  return getRecord<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, id);
+}
+export async function archiveQuestionnaireTemplate(id: string) {
+  return updateQuestionnaireTemplate(id, { status: "archived" });
 }
 export const getAdminApplications = cache(async () =>
   listCollection<AdminApplication>(COLLECTIONS.adminApplications, [
@@ -1599,11 +1617,43 @@ export async function createKnowledgeFromWinningSolution(
   });
 }
 
+async function linkCreatedResource(problemStatementId: string, resource: LinkedResource, actorId: string) {
+  const problem = await getProblemStatementById(problemStatementId);
+  if (problem) await addLinkedResourceToProblem(problem, resource, actorId);
+}
 export async function createProblemOnboardingSession(data: Omit<ProblemOnboardingSession, "id" | "createdAt" | "updatedAt">) {
-  return createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+  const actorId = data.adminOwnerId || data.createdBy || data.facilitatorId || "";
+  const created = await createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "scheduled", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "onboarding_session", collection: COLLECTIONS.problemOnboardingSessions, resourceId: created.id, title: data.sessionTitle || "Onboarding session", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
+  return created;
+}
+export async function updateProblemOnboardingSession(id: string, patch: Partial<ProblemOnboardingSession>) {
+  await updateRecord(COLLECTIONS.problemOnboardingSessions, id, { ...patch, updatedAt: serverTimestamp() });
+}
+export async function completeProblemOnboardingSession(id: string, actorId: string, problemStatus?: ProblemStatement["status"]) {
+  const session = await getRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, id);
+  await updateProblemOnboardingSession(id, { status: "completed", completedAt: serverTimestamp() as never });
+  if (session?.problemStatementId && problemStatus) await updateProblemStatus(session.problemStatementId, problemStatus, actorId);
+}
+export async function getOnboardingSessionsForProblem(problemStatementId: string) {
+  return listCollection<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, [where("problemStatementId", "==", problemStatementId), limit(50)]);
 }
 export async function createQuestionnaireResponse(data: Omit<QuestionnaireResponse, "id" | "createdAt" | "updatedAt">) {
-  return createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, status: data.status || "submitted", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+  const actorId = data.submittedByAdminId || data.createdBy || data.respondentId || "";
+  const responses = data.responses || data.answers || {};
+  const created = await createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, responses, answers: data.answers || responses, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "questionnaire_response", collection: COLLECTIONS.questionnaireResponses, resourceId: created.id, title: data.templateTitle || "Questionnaire response", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
+  if (data.sessionId) await updateProblemOnboardingSession(data.sessionId, { linkedQuestionnaireResponseIds: arrayUnion(created.id) as never });
+  return created;
+}
+export async function updateQuestionnaireResponse(id: string, patch: Partial<QuestionnaireResponse>) {
+  await updateRecord(COLLECTIONS.questionnaireResponses, id, { ...patch, answers: patch.answers || patch.responses, responses: patch.responses || patch.answers, updatedAt: serverTimestamp() });
+}
+export async function completeQuestionnaireResponse(id: string, answers: Record<string, unknown>, actorId: string) {
+  await updateQuestionnaireResponse(id, { answers, responses: answers, status: "completed", submittedByAdminId: actorId, completedAt: serverTimestamp() as never });
+}
+export async function getQuestionnaireResponsesForProblem(problemStatementId: string) {
+  return listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]);
 }
 export async function createSOPDocument(data: Omit<SOPDocument, "id" | "createdAt" | "updatedAt">) {
   return createRecord<SOPDocument>(COLLECTIONS.sopDocuments, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SOPDocument, "id">>);
@@ -1612,7 +1662,15 @@ export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt"
   return createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
 }
 export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
-  return createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+  const created = await createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, title: data.title || data.meetingTitle || "Meeting log", occurredAt: data.occurredAt || data.meetingDate, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "meeting_log", collection: COLLECTIONS.meetingLogs, resourceId: created.id, title: data.meetingTitle || data.title || "Meeting log", visibility: data.visibility || "admin_only", status: data.status || "completed" }, data.createdBy || "");
+  return created;
+}
+export async function updateMeetingLog(id: string, patch: Partial<MeetingLog>) {
+  await updateRecord(COLLECTIONS.meetingLogs, id, { ...patch, updatedAt: serverTimestamp() });
+}
+export async function getMeetingLogsForProblem(problemStatementId: string) {
+  return listCollection<MeetingLog>(COLLECTIONS.meetingLogs, [where("problemStatementId", "==", problemStatementId), limit(50)]);
 }
 export async function createSuccessStory(data: Omit<SuccessStory, "id" | "createdAt" | "updatedAt">) {
   return createRecord<SuccessStory>(COLLECTIONS.successStories, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SuccessStory, "id">>);
