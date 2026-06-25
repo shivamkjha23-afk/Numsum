@@ -45,15 +45,27 @@ import type {
   Competition,
   CompetitionSubmission,
   CompetitionTeam,
+  ConstitutionDocument,
+  ObjectiveTargetDocument,
+  DiscussionComment,
+  DiscussionPost,
   InternalThread,
   KnowledgeAsset,
+  LinkedResource,
   MsmeCase,
   Notification,
   Organization,
   PrivateCollaborationGroup,
+  ProblemOnboardingSession,
   ProblemStatement,
+  QuestionnaireResponse,
   QuestionnaireTemplate,
   ResearchPost,
+  SOPDocument,
+  SuccessStory,
+  TestimonialRating,
+  PilotTrack,
+  MeetingLog,
   SearchResult,
   SystemStats,
   TeamMember,
@@ -65,11 +77,20 @@ export const COLLECTIONS = {
   organizations: "organizations",
   problemStatements: "problem_statements",
   questionnaireTemplates: "questionnaire_templates",
+  questionnaireResponses: "questionnaire_responses",
+  problemOnboardingSessions: "problem_onboarding_sessions",
   problemReviews: "problem_reviews",
   internalThreads: "internal_threads",
   communityPosts: "community_posts",
   researchPosts: "research_posts",
   knowledgeAssets: "knowledge_assets",
+  sopDocuments: "sop_documents",
+  pilotTracks: "pilot_tracks",
+  meetingLogs: "meeting_logs",
+  successStories: "success_stories",
+  testimonialRatings: "testimonial_ratings",
+  constitutionDocuments: "constitution_documents",
+  objectiveTargetDocuments: "objective_target_documents",
   competitions: "competitions",
   collaborationRequests: "collaboration_requests",
   careerOpenings: "career_openings",
@@ -282,6 +303,7 @@ export async function ensureUserProfile(
       ...base,
       role: isBootstrapAdmin ? "admin" : "member",
       status: "active",
+      profileComplete: false,
       createdAt: serverTimestamp(),
     };
     console.info("[PROFILE] Creating user profile", {
@@ -297,6 +319,7 @@ export async function ensureUserProfile(
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
   if (!existing.status) patch.status = "active";
   if (!existing.role) patch.role = "member";
+  if (existing.profileComplete === undefined) patch.profileComplete = isProfileComplete(existing);
   if (
     isBootstrapAdmin &&
     existing.role !== "admin" &&
@@ -319,6 +342,77 @@ export async function ensureUserProfile(
   } as UserProfile;
 }
 
+
+export const organizationProfileTypes = [
+  "msme_owner",
+  "msme_representative",
+  "industrialist",
+  "academic_institution_representative",
+  "government_incubator_association",
+] as const;
+export const academicProfileTypes = ["researcher", "student"] as const;
+export const professionalProfileTypes = ["engineer_professional", "consultant"] as const;
+export const startupProfileTypes = ["startup_founder", "technology_provider"] as const;
+
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function hasListOrText(value: unknown) {
+  return Array.isArray(value) ? value.some(hasText) : hasText(value);
+}
+export function isProfileComplete(profile?: Partial<UserProfile> | null) {
+  if (!profile) return false;
+  const commonComplete = [
+    profile.fullName || profile.name || profile.displayName,
+    profile.email,
+    profile.phoneNumber,
+    profile.profileType,
+    profile.city,
+    profile.state,
+    profile.country,
+    profile.shortBio || profile.professionalSummary,
+  ].every(hasText);
+  if (!commonComplete) return false;
+  const profileType = profile.profileType;
+  if (!profileType) return false;
+  if ((organizationProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.organizationName, profile.organizationType, profile.industrySegment, profile.manufacturingOrServiceFocus, profile.productsOrServices, profile.companySize, profile.website].every(hasText);
+  }
+  if ((academicProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.institutionName, profile.departmentOrDiscipline, profile.researchInterests, profile.currentRole].every(hasText) && hasListOrText(profile.skills);
+  }
+  if ((professionalProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.domainExpertise, profile.yearsOfExperience, profile.industriesWorkedWith].every(hasText) && hasListOrText(profile.skills);
+  }
+  if ((startupProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.startupOrCompanyName, profile.solutionArea, profile.targetIndustries, profile.productStage].every(hasText);
+  }
+  return true;
+}
+
+export async function getCurrentUserProfile() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return getRecord<UserProfile>(COLLECTIONS.users, user.uid);
+}
+
+export async function createUserProfileIfMissing(user: FirebaseUser) {
+  return ensureUserProfile(user);
+}
+
+export async function updateUserProfile(userId: string, patch: Partial<UserProfile>) {
+  const existing = await getRecord<UserProfile>(COLLECTIONS.users, userId);
+  const profileComplete = isProfileComplete({ ...existing, ...patch, id: userId });
+  const payload: Record<string, unknown> = {
+    ...patch,
+    profileComplete,
+    updatedAt: serverTimestamp(),
+  };
+  if (profileComplete && !existing?.profileCompletedAt) payload.profileCompletedAt = serverTimestamp();
+  await updateRecord(COLLECTIONS.users, userId, payload);
+  return { ...(existing || { id: userId }), ...patch, profileComplete } as UserProfile;
+}
+
 export async function notifyAdmins(
   type: Notification["type"],
   title: string,
@@ -335,7 +429,7 @@ export async function notifyAdmins(
 }
 
 function publicConstraints(publicOnly = true) {
-  return publicOnly ? [where("visibility", "==", "public")] : [];
+  return publicOnly ? [where("visibility", "==", "public"), where("status", "==", "published")] : [];
 }
 function byCreatedAtDesc<T extends { createdAt?: unknown }>(rows: T[]) {
   return [...rows].sort((a, b) =>
@@ -369,7 +463,7 @@ export const getAllProblemStatements = cache(
 export const getAllChallenges = getAllProblemStatements;
 export const getSubmittedProblemStatements = cache(async () =>
   listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-    where("status", "in", ["submitted", "under_review", "needs_information"]),
+    where("status", "in", ["submitted", "under_review", "needs_more_info", "needs_information"]),
     limit(100),
   ]),
 );
@@ -592,22 +686,45 @@ export async function createProblemStatement(
 ) {
   if (!data.title?.trim())
     throw new Error("Problem statement title is required.");
-  const createdBy = data.createdBy || data.submittedBy || "";
+  const createdBy = data.submittedByUserId || data.createdBy || data.submittedBy || data.submitterId || "";
+  const shortDescription = data.shortDescription || data.summary || data.description || "";
+  const detailedDescription =
+    data.detailedDescription ||
+    data.problemDescription ||
+    data.problemStatement ||
+    data.description ||
+    "";
+  const attachmentsOrDriveLinks = data.attachmentsOrDriveLinks || data.attachments || [];
   const payload = {
     ...data,
-    summary: data.summary || data.description || "",
-    problemDescription:
-      data.problemDescription ||
-      data.problemStatement ||
-      data.description ||
-      "",
-    questionnaireResponses:
-      data.questionnaireResponses || data.questionnaire || {},
-    attachments: data.attachments || [],
+    shortDescription,
+    detailedDescription,
+    summary: shortDescription,
+    description: shortDescription,
+    problemDescription: detailedDescription,
+    problemStatement: detailedDescription,
+    attachmentsOrDriveLinks,
+    attachments: attachmentsOrDriveLinks,
+    questionnaireResponses: data.questionnaireResponses || data.questionnaire || {},
     createdBy,
     submittedBy: data.submittedBy || createdBy,
+    submittedByUserId: createdBy,
+    submitterId: data.submitterId || createdBy,
+    ownerIds: Array.from(new Set([createdBy, ...(data.ownerIds || [])].filter(Boolean))),
     status: "submitted",
-    visibility: "member_only",
+    adminReviewStatus: "submitted",
+    visibility: "submitter_only",
+    priority: data.priority || "medium",
+    onboardingSessionIds: data.onboardingSessionIds || [],
+    questionnaireResponseIds: data.questionnaireResponseIds || [],
+    sopIds: data.sopIds || [],
+    knowledgeAssetIds: data.knowledgeAssetIds || [],
+    researchItemIds: data.researchItemIds || [],
+    pilotTrackIds: data.pilotTrackIds || [],
+    meetingLogIds: data.meetingLogIds || [],
+    competitionIds: data.competitionIds || [],
+    discussionPostIds: data.discussionPostIds || [],
+    linkedResources: data.linkedResources || [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -619,7 +736,7 @@ export async function createProblemStatement(
   await routeToAdminInbox({
     type: "problem_submission",
     title: data.title,
-    description: payload.summary,
+    description: payload.shortDescription,
     sourceCollection: COLLECTIONS.problemStatements,
     sourceId: created.id,
     createdBy,
@@ -629,7 +746,7 @@ export async function createProblemStatement(
     action: "problem_submitted",
     collectionName: COLLECTIONS.problemStatements,
     documentId: created.id,
-    after: { status: "submitted", visibility: "member_only" },
+    after: { status: "submitted", visibility: "submitter_only" },
   });
   if (createdBy)
     await createNotification({
@@ -641,7 +758,7 @@ export async function createProblemStatement(
     });
   await notifyAdmins(
     "problem_submission",
-    "New Problem Statement",
+    "New MSME Problem Submitted",
     data.title,
     created.id,
   );
@@ -769,7 +886,7 @@ export async function createCommunityPost(
   const associatedType = (data.associatedType || data.linkedEntityType || data.targetType || "general") as DiscussionTargetType;
   const associatedId = data.associatedId || data.linkedEntityId || data.targetId || null;
   if (associatedType !== "general" && !associatedId) throw new Error("Linked entity is required for non-general discussions.");
-  const typeByEntity: Record<DiscussionTargetType, CommunityPost["type"]> = { problem_statement: "problem", research: "research", competition: "competition", knowledge_asset: "knowledge", organization: "organization", msme_case: "msme", team: "team", community: "general", general: "general" };
+  const typeByEntity: Partial<Record<DiscussionTargetType, CommunityPost["type"]>> = { problem_statement: "problem", research: "research", competition: "competition", knowledge_asset: "knowledge", organization: "organization", msme_case: "msme", team: "team", community: "general", general: "general" };
   const discussionType = data.type || typeByEntity[associatedType] || "general";
   const problemStatementId =
     associatedType === "problem_statement"
@@ -1211,7 +1328,7 @@ export async function convertProblemToCompetition(
     problemStatementId: problem.id,
     action: "convert_to_competition",
     statusFrom: problem.status,
-    statusTo: "competition",
+    statusTo: "structured",
     createdBy,
   });
   return created;
@@ -1481,6 +1598,47 @@ export async function createKnowledgeFromWinningSolution(
     createdBy: reviewerId,
   });
 }
+
+export async function createProblemOnboardingSession(data: Omit<ProblemOnboardingSession, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+}
+export async function createQuestionnaireResponse(data: Omit<QuestionnaireResponse, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, status: data.status || "submitted", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+}
+export async function createSOPDocument(data: Omit<SOPDocument, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<SOPDocument>(COLLECTIONS.sopDocuments, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SOPDocument, "id">>);
+}
+export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+}
+export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+}
+export async function createSuccessStory(data: Omit<SuccessStory, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<SuccessStory>(COLLECTIONS.successStories, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SuccessStory, "id">>);
+}
+export async function createTestimonialRating(data: Omit<TestimonialRating, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<TestimonialRating>(COLLECTIONS.testimonialRatings, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<TestimonialRating, "id">>);
+}
+export const getLinkedProblemResources = cache(async (problemStatementId: string) => {
+  const [onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions, successStories, testimonialRatings] = await Promise.all([
+    listCollection<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    getResearchByProblem(problemStatementId).catch(() => []),
+    getKnowledgeByProblem(problemStatementId).catch(() => []),
+    listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<MeetingLog>(COLLECTIONS.meetingLogs, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    getCompetitionsByProblem(problemStatementId).catch(() => []),
+    getCommunityByProblem(problemStatementId).catch(() => []),
+    listCollection<SuccessStory>(COLLECTIONS.successStories, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<TestimonialRating>(COLLECTIONS.testimonialRatings, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+  ]);
+  return { onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions: discussions as DiscussionPost[], successStories, testimonialRatings };
+});
+export async function upsertConstitutionDocument(id: string, data: Omit<ConstitutionDocument, "id">) { return upsertRecord(COLLECTIONS.constitutionDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
+export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
+
 export async function globalSearch(term: string): Promise<SearchResult[]> {
   const needle = term.toLowerCase();
   const [problems, orgs, research, knowledge, community, competitions] =
@@ -1552,17 +1710,72 @@ export async function globalSearch(term: string): Promise<SearchResult[]> {
 export const getProblemStatementById = cache(async (id: string) =>
   getRecord<ProblemStatement>(COLLECTIONS.problemStatements, id),
 );
-export const getProblemStatementsByCreator = cache(async (userId: string) =>
+
+export const getMyProblemStatements = cache(async (userId: string) =>
   listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-    where("createdBy", "==", userId),
+    where("submittedByUserId", "==", userId),
+    orderBy("createdAt", "desc"),
     limit(100),
   ]).catch(() =>
     listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [
-      where("submittedBy", "==", userId),
+      where("createdBy", "==", userId),
       limit(100),
     ]),
   ),
 );
+export const getPublicProblemStatements = getProblemStatements;
+export const getAdminProblemStatements = getAllProblemStatements;
+export async function updateProblemStatement(id: string, patch: Partial<ProblemStatement>, actorId?: string) {
+  await updateRecord(COLLECTIONS.problemStatements, id, patch as Record<string, unknown>);
+  if (actorId) await logAudit({ actorId, action: "problem_updated", collectionName: COLLECTIONS.problemStatements, documentId: id, after: patch });
+}
+export async function updateProblemStatus(id: string, status: ProblemStatement["status"], actorId: string, notes?: string) {
+  const patch: Partial<ProblemStatement> = { status, adminReviewStatus: status, reviewedAt: serverTimestamp() as never };
+  if (notes !== undefined) patch.adminNotes = notes;
+  if (status === "published") {
+    patch.visibility = "public";
+    patch.publishedAt = serverTimestamp() as never;
+  }
+  return updateProblemStatement(id, patch, actorId);
+}
+export async function updateProblemVisibility(id: string, visibility: ProblemStatement["visibility"], actorId: string) {
+  const patch: Partial<ProblemStatement> = { visibility };
+  if (visibility === "public") patch.publishedAt = serverTimestamp() as never;
+  return updateProblemStatement(id, patch, actorId);
+}
+export async function assignProblemToAdmin(id: string, assignedAdminId: string, actorId: string) {
+  return updateProblemStatement(id, { assignedAdminId, assignedReviewer: assignedAdminId }, actorId);
+}
+function resourceIdField(type: LinkedResource["type"]) {
+  const fields: Partial<Record<LinkedResource["type"], keyof ProblemStatement>> = {
+    onboarding_session: "onboardingSessionIds",
+    questionnaire_response: "questionnaireResponseIds",
+    sop_document: "sopIds",
+    knowledge_asset: "knowledgeAssetIds",
+    research: "researchItemIds",
+    pilot_track: "pilotTrackIds",
+    meeting_log: "meetingLogIds",
+    competition: "competitionIds",
+    community: "discussionPostIds",
+  };
+  return fields[type];
+}
+export async function addLinkedResourceToProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+  const field = resourceIdField(resource.type);
+  const linkedResources = [...(problem.linkedResources || []), { ...resource, linkedAt: new Date().toISOString(), linkedBy: actorId }];
+  const patch: Partial<ProblemStatement> = { linkedResources };
+  if (field) patch[field] = Array.from(new Set([...(problem[field] as string[] | undefined || []), resource.resourceId])) as never;
+  return updateProblemStatement(problem.id, patch, actorId);
+}
+export async function removeLinkedResourceFromProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+  const field = resourceIdField(resource.type);
+  const linkedResources = (problem.linkedResources || []).filter((item) => !(item.type === resource.type && item.resourceId === resource.resourceId));
+  const patch: Partial<ProblemStatement> = { linkedResources };
+  if (field) patch[field] = ((problem[field] as string[] | undefined) || []).filter((id) => id !== resource.resourceId) as never;
+  return updateProblemStatement(problem.id, patch, actorId);
+}
+
+export const getProblemStatementsByCreator = getMyProblemStatements;
 export const getProblemReviews = cache(async (problemStatementId: string) =>
   listCollection<ChallengeReview>(COLLECTIONS.problemReviews, [
     where("problemStatementId", "==", problemStatementId),

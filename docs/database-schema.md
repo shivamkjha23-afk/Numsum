@@ -1,47 +1,206 @@
-# NumSum Firebase Data Model
+# NumSum Labs Firebase Data Model
 
-NumSum uses Firebase Authentication, Firestore and Hosting. Documents include `tenantId`, `createdAt`, `updatedAt`, `createdBy`, and RBAC metadata where applicable to support multi-organization scale.
+NumSum Labs is organized as a three-module MSME-first operating system. The data model centers every workflow on a `problem_statements` document and links public, member, and admin artifacts back to that problem where applicable.
 
-## Collections
+## Platform modules
 
-- `users`: profiles, skills, badges, roles, contribution score, organization memberships.
-- `organizations`: organization profile, industry, size, contacts, verification state.
-- `challenges`: problem statement, type, category, status, workspace settings, visibility, reward.
-- `challenge_categories`: sector taxonomy and challenge metadata.
-- `questionnaires`: admin-managed form definitions by challenge type and organization segment.
-- `questionnaire_fields`: reusable field definitions, validation, options and conditional visibility rules.
-- `teams`: challenge/event teams, purpose, status and public profile.
-- `team_members`: user-team role mapping with invitation/application states.
-- `submissions`: deliverables, version pointer, team, challenge, review status.
-- `events`: hackathons, research competitions and MSME problem-solving events.
-- `event_registrations`: user/team registration and certificate state.
-- `knowledge_assets`: papers, reports, templates, guides, videos and access policy.
-- `research_papers`: structured research metadata and citations.
-- `community_posts`: discussion hub posts with tags, mentions and attachment references.
-- `comments`: threaded comments for posts, challenges and submissions.
-- `reviews`: reviewer assignment, rubric version and moderation state.
-- `review_scores`: weighted scores for innovation, practicality, scalability, cost, technical quality, business potential and impact.
-- `contribution_logs`: immutable point events for participation, mentoring, reviewing, winning and helping.
-- `badges`: badge definitions, criteria and awarded counts.
-- `notifications`: user and organization notification feed.
-- `messages`: direct and workspace messages.
-- `admin_settings`: platform feature flags, scoring weights, questionnaire rules and moderation policies.
+### Public Module
+Public users can read only documents explicitly approved for public access: `visibility: "public"` plus a public lifecycle state such as `status: "published"`, `"public"`, `"active"`, or `"completed"`.
 
-## MSME Intelligence collections
+Public collections/pages are powered by:
 
-- `organizations/{organizationId}/verification/*`
-- `challenges/{challengeId}/attachments/*`
-- `workspaces/{challengeId}/files/*`
-- `submissions/{submissionId}/versions/{versionId}/*`
-- `knowledge/{assetId}/*`
-- `users/{userId}/profile/*`
+- `problem_statements`: public MSME challenges/problem statements.
+- `msme_cases`: public MSME intelligence and case records.
+- `knowledge_assets`, `sop_documents`, `research_posts`: approved knowledge, SOP, and research assets.
+- `competitions`: public/open competitions.
+- `success_stories`, `testimonial_ratings`: moderated stories, testimonials, and ratings.
 
-## MSME Intelligence collections
+### Member Module
+Authenticated members can create or participate in content that belongs to them, their teams, or the member community:
 
-- `industry_clusters`: real manufacturing and export-oriented cluster profiles including cluster name, state, specialization, enterprise descriptor and export-readiness marker.
-- `msme_sectors`: Ministry of MSME sector distribution records with employment in lakh, share percentage and source note.
-- `government_schemes`: central MSME scheme catalog with agency and capability-building focus.
-- `export_opportunities`: product-category export opportunities with priority markets and positioning notes.
-- `industry_reports`: source reports used by the intelligence module, including publisher and year.
-- `market_insights`: evidence-backed summaries and metrics used in the dashboard cards.
-- `technology_trends`: MSME technology adoption themes with adoption area and maturity score for dashboard visualization.
+- `users`: member profile and mandatory profile-completion state.
+- `organizations`: MSME/research/partner organization profiles.
+- `problem_statements`: submitted problems default to `visibility: "submitter_only"` and `status: "submitted"`.
+- `research_posts`: member research contributions.
+- `competition_teams`, `competition_submissions`: team membership and competition deliverables.
+- `community_posts`, `comments`, `replies`: public/member discussions and permitted private team/problem discussions.
+
+### Admin Module
+Admins can read/write all platform data and manage the operating workflow:
+
+- Review submitted problems.
+- Schedule/record onboarding sessions.
+- Fill questionnaire responses against the same submitted problem.
+- Convert a problem to a structured challenge or competition.
+- Link SOPs, knowledge assets, research items, meetings, pilot tracks, files, and competitions to problems.
+- Control `visibility` on every governed object.
+- Moderate success stories, testimonials, ratings, discussions, teams, submissions, and results.
+- Version constitution and objective/target documents.
+
+## Shared enums
+
+### Visibility
+
+All governed content should use one of the following values:
+
+- `admin_only`: only admins can read/write.
+- `submitter_only`: admins and the original submitter/owners can read; admin controls publishing.
+- `team_only`: admins and permitted team members can read.
+- `member_only`: authenticated members can read.
+- `public`: anonymous public users can read only when status is also public-approved.
+
+Legacy `private` remains accepted in TypeScript for backward compatibility, but new data should use `admin_only` or `submitter_only`.
+
+### Status
+
+Core lifecycle values are:
+
+- `draft`
+- `submitted`
+- `under_review`
+- `onboarded`
+- `structured`
+- `active`
+- `completed`
+- `published`
+- `archived`
+- `rejected`
+
+Compatibility values still seen in older records include `needs_information`, `member_only`, `public`, `researching`, `competition`, and `solved`.
+
+## Core collections
+
+### `users` (`UserProfile`)
+Member identity and profile state.
+
+Key fields: `uid`, `displayName`, `name`, `email`, `role`, `status`, `profileComplete`, `organizationId`, `organizationIds`, `memberModuleEnabled`, `onboardingCompletedAt`, `createdAt`, `updatedAt`.
+
+### `organizations` (`OrganizationProfile`)
+Organization/MSME profile.
+
+Key fields: `name`, `publicLabel`, `industry`, `description`, `website`, `logo`, `verificationStatus`, `city`, `state`, `country`, `status`, `createdBy`.
+
+### `problem_statements` (`ProblemStatement`)
+Canonical problem/challenge record. All major workflows link back here.
+
+Key fields: `title`, `summary`, `description`, `problemDescription`, `category`, `organizationId`, `createdBy`, `submittedBy`, `submitterId`, `ownerIds`, `teamIds`, `status`, `visibility`, `questionnaireResponses`, `attachments`, `linkedResources`, `structuredChallengeId`, `convertedCompetitionId`, `publishedAt`.
+
+Default submission behavior: `status: "submitted"`, `visibility: "submitter_only"`; readable only by admins and the submitter until admin changes visibility.
+
+### `problem_onboarding_sessions` (`ProblemOnboardingSession`)
+Admin-created one-to-one onboarding session for a submitted problem.
+
+Key fields: `problemStatementId`, `scheduledAt`, `recordedAt`, `facilitatorId`, `participantIds`, `notes`, `meetingUrl`, `recordingUrl`, `questionnaireResponseId`, `status`, `visibility`.
+
+### `questionnaire_templates` (`QuestionnaireTemplate`)
+Admin-managed reusable templates.
+
+Key fields: `category`, `name`, `questions[]`, `createdBy`.
+
+### `questionnaire_responses` (`QuestionnaireResponse`)
+Admin-filled or admin-reviewed answers linked to a problem/session.
+
+Key fields: `problemStatementId`, `templateId`, `sessionId`, `respondentId`, `responses`, `status`, `visibility`.
+
+### Linked work collections
+
+Each of these can link to a problem through `problemStatementId` and/or through `ProblemStatement.linkedResources[]`:
+
+- `knowledge_assets` (`KnowledgeAsset`): approved knowledge, templates, guides, cases, reports.
+- `sop_documents` (`SOPDocument`): SOP content and document links.
+- `research_posts` / `ResearchItem`: research submissions and published research.
+- `pilot_tracks` (`PilotTrack`): pilot implementation tracks and milestones.
+- `meeting_logs` (`MeetingLog`): notes, action items, files, and meeting metadata.
+- `competitions` (`Competition`): problem-derived or standalone competitions.
+- `community_posts` (`DiscussionPost`): problem, research, competition, knowledge, organization, MSME, team, or general discussions.
+
+### Competition collections
+
+- `competitions` (`Competition`): public/admin-managed competition/challenge record with `sourceType`, `sourceId`, and `sourceProblemId` for problem conversions.
+- `competition_teams` (`CompetitionTeam`): team leader and members.
+- `competition_submissions` (`CompetitionSubmission`): individual or team deliverables, evaluation, rank, and winner state.
+
+### Moderated public proof collections
+
+- `success_stories` (`SuccessStory`): outcome stories linked to problems/organizations.
+- `testimonial_ratings` (`TestimonialRating`): moderated ratings and testimonials.
+
+### Governance/versioned document collections
+
+- `constitution_documents` (`ConstitutionDocument`): versioned constitution text/file records.
+- `objective_target_documents` (`ObjectiveTargetDocument`): versioned objectives, target documents, and target metrics.
+
+## LinkedResource pattern
+
+`LinkedResource` is a lightweight embedded pointer used by `ProblemStatement.linkedResources[]` and future linking UIs.
+
+Fields: `type`, `collection`, `resourceId`, `title`, `visibility`, `status`, `url`, `linkedAt`, `linkedBy`.
+
+Use this to show the complete problem workspace in one place while still keeping each artifact in its own collection for permissions, moderation, and lifecycle management.
+
+## Firestore security posture
+
+- Admins (`admin`, `super_admin`, and the configured bootstrap admin) can read/write all platform data.
+- Public users can read only public-approved documents.
+- Members can read `member_only` and public-approved content.
+- Submitters can read their own `submitter_only` problems and related onboarding/questionnaire records when ownership fields identify them.
+- Team-only data requires membership fields such as `members`, `ownerIds`, or `teamMemberIds`.
+- New submitted MSME problems are not public by default.
+
+## Problem statement lifecycle and private submission workflow
+
+`problem_statements` is the central operating object for MSME challenge intake. Member-facing labels may say “MSME Challenge” or “Problem Statement,” but repository functions and linked workflows should use `ProblemStatement`.
+
+### Submission defaults
+
+When a completed-profile member submits a problem:
+
+- `status` is set to `submitted`.
+- `adminReviewStatus` is set to `submitted`.
+- `visibility` is set to `submitter_only`.
+- `submittedByUserId`, `submittedByName`, `submittedByEmail`, and `submittedByProfileType` are copied from the member profile.
+- `ownerIds` includes the submitter UID.
+- Linked-resource id arrays are initialized for onboarding sessions, questionnaire responses, SOPs, knowledge assets, research items, pilot tracks, meeting logs, competitions, and discussions.
+
+A submitted problem is therefore readable only by admins/super-admins and the submitter until an admin changes visibility.
+
+### Admin review statuses
+
+Admin review may move a problem through these lifecycle values:
+
+- `submitted`
+- `under_review`
+- `needs_more_info`
+- `onboarded`
+- `structured`
+- `pilot_shortlisted`
+- `competition_candidate`
+- `published`
+- `archived`
+- `rejected`
+
+Only admins can set `visibility: "public"`. Public problem pages and listings must require both `status: "published"` and `visibility: "public"`.
+
+### Access model
+
+- Public visitors: read only `status: "published"` and `visibility: "public"` problems.
+- Completed members: create problems for themselves and read member/public problems where visibility allows.
+- Submitters: read their own `submitter_only` submissions and limited admin notes intended for submitter visibility.
+- Submitters may edit only non-governance problem fields while status is `submitted` or `needs_more_info`.
+- Admins/super-admins: read/write all problem statements, including status, visibility, priority, assignment, internal notes, submitter-visible notes, and linked-resource arrays.
+
+### Linked resources
+
+Future admin enrichment attaches resources through both `linkedResources[]` and typed id arrays:
+
+- `onboardingSessionIds`
+- `questionnaireResponseIds`
+- `sopIds`
+- `knowledgeAssetIds`
+- `researchItemIds`
+- `pilotTrackIds`
+- `meetingLogIds`
+- `competitionIds`
+- `discussionPostIds`
+
+This allows the detail page and future admin workspaces to show the complete operating context for a problem without exposing admin-only resources publicly.
