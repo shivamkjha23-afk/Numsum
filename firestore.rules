@@ -78,7 +78,15 @@ service cloud.firestore {
     match /challenges/{document=**} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
     match /problem_reviews/{id} { allow read: if platformAdmin() || submitterVisible(); allow create, update, delete: if platformAdmin(); }
 
-    match /research_posts/{id} { allow read: if canReadVisible(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /research_posts/{id} {
+      function approvedResearch() { return resource.data.status in ['approved','published','public']; }
+      function nonAdminSafeResearchCreate() { return signedIn() && ownsIncoming() && request.resource.data.status == 'under_review' && request.resource.data.visibility == 'admin_only' && !(request.resource.data.keys().hasAny(['problemStatementId']) && request.resource.data.problemStatementId != null && request.resource.data.problemStatementId != ''); }
+      function nonAdminSafeResearchUpdate() { return ownsExisting() && request.resource.data.status == resource.data.status && request.resource.data.visibility == resource.data.visibility && !(request.resource.data.status in ['approved','published','public']) && request.resource.data.visibility != 'public' && request.resource.data.problemStatementId == resource.data.problemStatementId; }
+      allow read: if platformAdmin() || ownsExisting() || (resource.data.visibility == 'public' && approvedResearch()) || (signedIn() && resource.data.visibility == 'member_only' && approvedResearch()) || linkedWorkspaceVisible();
+      allow create: if platformAdmin() || nonAdminSafeResearchCreate();
+      allow update: if platformAdmin() || nonAdminSafeResearchUpdate();
+      allow delete: if platformAdmin();
+    }
     match /knowledge_assets/{id} { allow read: if canReadVisible() || linkedWorkspaceVisible(); allow create: if platformAdmin() || (signedIn() && ownsIncoming() && request.resource.data.problemStatementId is string && request.resource.data.status == 'under_review' && request.resource.data.visibility == 'admin_only'); allow update: if platformAdmin() || (ownsExisting() && request.resource.data.status == resource.data.status && request.resource.data.visibility == resource.data.visibility && !(request.resource.data.status in ['approved','published']) && request.resource.data.visibility != 'public'); allow delete: if platformAdmin(); }
     match /sop_documents/{id} { allow read: if canReadVisible() || linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string; }
     match /pilot_tracks/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
