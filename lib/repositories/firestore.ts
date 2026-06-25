@@ -302,6 +302,7 @@ export async function ensureUserProfile(
       ...base,
       role: isBootstrapAdmin ? "admin" : "member",
       status: "active",
+      profileComplete: false,
       createdAt: serverTimestamp(),
     };
     console.info("[PROFILE] Creating user profile", {
@@ -317,6 +318,7 @@ export async function ensureUserProfile(
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
   if (!existing.status) patch.status = "active";
   if (!existing.role) patch.role = "member";
+  if (existing.profileComplete === undefined) patch.profileComplete = isProfileComplete(existing);
   if (
     isBootstrapAdmin &&
     existing.role !== "admin" &&
@@ -337,6 +339,77 @@ export async function ensureUserProfile(
     status: (patch.status as string) || existing.status || "active",
     role: (patch.role as UserProfile["role"]) || existing.role || "member",
   } as UserProfile;
+}
+
+
+export const organizationProfileTypes = [
+  "msme_owner",
+  "msme_representative",
+  "industrialist",
+  "academic_institution_representative",
+  "government_incubator_association",
+] as const;
+export const academicProfileTypes = ["researcher", "student"] as const;
+export const professionalProfileTypes = ["engineer_professional", "consultant"] as const;
+export const startupProfileTypes = ["startup_founder", "technology_provider"] as const;
+
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function hasListOrText(value: unknown) {
+  return Array.isArray(value) ? value.some(hasText) : hasText(value);
+}
+export function isProfileComplete(profile?: Partial<UserProfile> | null) {
+  if (!profile) return false;
+  const commonComplete = [
+    profile.fullName || profile.name || profile.displayName,
+    profile.email,
+    profile.phoneNumber,
+    profile.profileType,
+    profile.city,
+    profile.state,
+    profile.country,
+    profile.shortBio || profile.professionalSummary,
+  ].every(hasText);
+  if (!commonComplete) return false;
+  const profileType = profile.profileType;
+  if (!profileType) return false;
+  if ((organizationProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.organizationName, profile.organizationType, profile.industrySegment, profile.manufacturingOrServiceFocus, profile.productsOrServices, profile.companySize, profile.website].every(hasText);
+  }
+  if ((academicProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.institutionName, profile.departmentOrDiscipline, profile.researchInterests, profile.currentRole].every(hasText) && hasListOrText(profile.skills);
+  }
+  if ((professionalProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.domainExpertise, profile.yearsOfExperience, profile.industriesWorkedWith].every(hasText) && hasListOrText(profile.skills);
+  }
+  if ((startupProfileTypes as readonly string[]).includes(profileType)) {
+    return [profile.startupOrCompanyName, profile.solutionArea, profile.targetIndustries, profile.productStage].every(hasText);
+  }
+  return true;
+}
+
+export async function getCurrentUserProfile() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return getRecord<UserProfile>(COLLECTIONS.users, user.uid);
+}
+
+export async function createUserProfileIfMissing(user: FirebaseUser) {
+  return ensureUserProfile(user);
+}
+
+export async function updateUserProfile(userId: string, patch: Partial<UserProfile>) {
+  const existing = await getRecord<UserProfile>(COLLECTIONS.users, userId);
+  const profileComplete = isProfileComplete({ ...existing, ...patch, id: userId });
+  const payload: Record<string, unknown> = {
+    ...patch,
+    profileComplete,
+    updatedAt: serverTimestamp(),
+  };
+  if (profileComplete && !existing?.profileCompletedAt) payload.profileCompletedAt = serverTimestamp();
+  await updateRecord(COLLECTIONS.users, userId, payload);
+  return { ...(existing || { id: userId }), ...patch, profileComplete } as UserProfile;
 }
 
 export async function notifyAdmins(
