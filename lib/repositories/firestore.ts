@@ -725,6 +725,7 @@ export async function createProblemStatement(
     competitionIds: data.competitionIds || [],
     discussionPostIds: data.discussionPostIds || [],
     linkedResources: data.linkedResources || [],
+    visibility: "submitter_only",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
