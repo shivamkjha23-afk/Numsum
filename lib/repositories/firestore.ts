@@ -45,15 +45,26 @@ import type {
   Competition,
   CompetitionSubmission,
   CompetitionTeam,
+  ConstitutionDocument,
+  ObjectiveTargetDocument,
+  DiscussionComment,
+  DiscussionPost,
   InternalThread,
   KnowledgeAsset,
   MsmeCase,
   Notification,
   Organization,
   PrivateCollaborationGroup,
+  ProblemOnboardingSession,
   ProblemStatement,
+  QuestionnaireResponse,
   QuestionnaireTemplate,
   ResearchPost,
+  SOPDocument,
+  SuccessStory,
+  TestimonialRating,
+  PilotTrack,
+  MeetingLog,
   SearchResult,
   SystemStats,
   TeamMember,
@@ -65,11 +76,20 @@ export const COLLECTIONS = {
   organizations: "organizations",
   problemStatements: "problem_statements",
   questionnaireTemplates: "questionnaire_templates",
+  questionnaireResponses: "questionnaire_responses",
+  problemOnboardingSessions: "problem_onboarding_sessions",
   problemReviews: "problem_reviews",
   internalThreads: "internal_threads",
   communityPosts: "community_posts",
   researchPosts: "research_posts",
   knowledgeAssets: "knowledge_assets",
+  sopDocuments: "sop_documents",
+  pilotTracks: "pilot_tracks",
+  meetingLogs: "meeting_logs",
+  successStories: "success_stories",
+  testimonialRatings: "testimonial_ratings",
+  constitutionDocuments: "constitution_documents",
+  objectiveTargetDocuments: "objective_target_documents",
   competitions: "competitions",
   collaborationRequests: "collaboration_requests",
   careerOpenings: "career_openings",
@@ -607,7 +627,7 @@ export async function createProblemStatement(
     createdBy,
     submittedBy: data.submittedBy || createdBy,
     status: "submitted",
-    visibility: "member_only",
+    visibility: "submitter_only",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -629,7 +649,7 @@ export async function createProblemStatement(
     action: "problem_submitted",
     collectionName: COLLECTIONS.problemStatements,
     documentId: created.id,
-    after: { status: "submitted", visibility: "member_only" },
+    after: { status: "submitted", visibility: "submitter_only" },
   });
   if (createdBy)
     await createNotification({
@@ -769,7 +789,7 @@ export async function createCommunityPost(
   const associatedType = (data.associatedType || data.linkedEntityType || data.targetType || "general") as DiscussionTargetType;
   const associatedId = data.associatedId || data.linkedEntityId || data.targetId || null;
   if (associatedType !== "general" && !associatedId) throw new Error("Linked entity is required for non-general discussions.");
-  const typeByEntity: Record<DiscussionTargetType, CommunityPost["type"]> = { problem_statement: "problem", research: "research", competition: "competition", knowledge_asset: "knowledge", organization: "organization", msme_case: "msme", team: "team", community: "general", general: "general" };
+  const typeByEntity: Partial<Record<DiscussionTargetType, CommunityPost["type"]>> = { problem_statement: "problem", research: "research", competition: "competition", knowledge_asset: "knowledge", organization: "organization", msme_case: "msme", team: "team", community: "general", general: "general" };
   const discussionType = data.type || typeByEntity[associatedType] || "general";
   const problemStatementId =
     associatedType === "problem_statement"
@@ -1211,7 +1231,7 @@ export async function convertProblemToCompetition(
     problemStatementId: problem.id,
     action: "convert_to_competition",
     statusFrom: problem.status,
-    statusTo: "competition",
+    statusTo: "structured",
     createdBy,
   });
   return created;
@@ -1481,6 +1501,47 @@ export async function createKnowledgeFromWinningSolution(
     createdBy: reviewerId,
   });
 }
+
+export async function createProblemOnboardingSession(data: Omit<ProblemOnboardingSession, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+}
+export async function createQuestionnaireResponse(data: Omit<QuestionnaireResponse, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, status: data.status || "submitted", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+}
+export async function createSOPDocument(data: Omit<SOPDocument, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<SOPDocument>(COLLECTIONS.sopDocuments, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SOPDocument, "id">>);
+}
+export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+}
+export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+}
+export async function createSuccessStory(data: Omit<SuccessStory, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<SuccessStory>(COLLECTIONS.successStories, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<SuccessStory, "id">>);
+}
+export async function createTestimonialRating(data: Omit<TestimonialRating, "id" | "createdAt" | "updatedAt">) {
+  return createRecord<TestimonialRating>(COLLECTIONS.testimonialRatings, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<TestimonialRating, "id">>);
+}
+export const getLinkedProblemResources = cache(async (problemStatementId: string) => {
+  const [onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions, successStories, testimonialRatings] = await Promise.all([
+    listCollection<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    getResearchByProblem(problemStatementId).catch(() => []),
+    getKnowledgeByProblem(problemStatementId).catch(() => []),
+    listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<MeetingLog>(COLLECTIONS.meetingLogs, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    getCompetitionsByProblem(problemStatementId).catch(() => []),
+    getCommunityByProblem(problemStatementId).catch(() => []),
+    listCollection<SuccessStory>(COLLECTIONS.successStories, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<TestimonialRating>(COLLECTIONS.testimonialRatings, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+  ]);
+  return { onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions: discussions as DiscussionPost[], successStories, testimonialRatings };
+});
+export async function upsertConstitutionDocument(id: string, data: Omit<ConstitutionDocument, "id">) { return upsertRecord(COLLECTIONS.constitutionDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
+export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
+
 export async function globalSearch(term: string): Promise<SearchResult[]> {
   const needle = term.toLowerCase();
   const [problems, orgs, research, knowledge, community, competitions] =
