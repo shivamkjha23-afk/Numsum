@@ -52,6 +52,8 @@ import type {
   InternalThread,
   KnowledgeAsset,
   LinkedResource,
+  FileLink,
+  TimelineEvent,
   MsmeCase,
   Notification,
   Organization,
@@ -88,6 +90,9 @@ export const COLLECTIONS = {
   sopDocuments: "sop_documents",
   pilotTracks: "pilot_tracks",
   meetingLogs: "meeting_logs",
+  linkedResources: "linked_resources",
+  timelineEvents: "timeline_events",
+  fileLinks: "file_links",
   successStories: "success_stories",
   testimonialRatings: "testimonial_ratings",
   constitutionDocuments: "constitution_documents",
@@ -766,6 +771,7 @@ export async function createProblemStatement(
     documentId: created.id,
     after: { status: "submitted", visibility: "submitter_only" },
   });
+  await createProblemTimelineEvent(created.id, "problem_submitted", "Problem submitted", createdBy || "system", { title: data.title }, "submitter_only");
   if (createdBy)
     await createNotification({
       userId: createdBy,
@@ -1621,10 +1627,27 @@ async function linkCreatedResource(problemStatementId: string, resource: LinkedR
   const problem = await getProblemStatementById(problemStatementId);
   if (problem) await addLinkedResourceToProblem(problem, resource, actorId);
 }
+
+export async function createTimelineEvent(data: Omit<TimelineEvent, "id" | "createdAt">) {
+  return createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, {
+    ...data,
+    visibility: data.visibility || "admin_only",
+    createdAt: serverTimestamp(),
+  } as WithFieldValue<Omit<TimelineEvent, "id">>);
+}
+
+export async function getTimelineEventsForProblem(problemStatementId: string) {
+  return listCollection<TimelineEvent>(COLLECTIONS.timelineEvents, [where("problemStatementId", "==", problemStatementId), limit(100)]);
+}
+
+async function createProblemTimelineEvent(problemStatementId: string, eventType: TimelineEvent["eventType"], title: string, actorUserId?: string, metadata?: Record<string, unknown>, visibility: TimelineEvent["visibility"] = "submitter_only") {
+  return createTimelineEvent({ problemStatementId, eventType, title, actorUserId, visibility, metadata }).catch(() => undefined);
+}
 export async function createProblemOnboardingSession(data: Omit<ProblemOnboardingSession, "id" | "createdAt" | "updatedAt">) {
   const actorId = data.adminOwnerId || data.createdBy || data.facilitatorId || "";
   const created = await createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "scheduled", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
-  await linkCreatedResource(data.problemStatementId, { type: "onboarding_session", collection: COLLECTIONS.problemOnboardingSessions, resourceId: created.id, title: data.sessionTitle || "Onboarding session", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
+  await linkCreatedResource(data.problemStatementId, { type: "onboarding_session", resourceType: "onboarding_session", collection: COLLECTIONS.problemOnboardingSessions, resourceId: created.id, title: data.sessionTitle || "Onboarding session", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
+  await createProblemTimelineEvent(data.problemStatementId, data.status === "completed" ? "onboarding_completed" : "onboarding_started", data.sessionTitle || "Onboarding session created", actorId, { resourceId: created.id }, data.visibility || "admin_only");
   return created;
 }
 export async function updateProblemOnboardingSession(id: string, patch: Partial<ProblemOnboardingSession>) {
@@ -1633,6 +1656,7 @@ export async function updateProblemOnboardingSession(id: string, patch: Partial<
 export async function completeProblemOnboardingSession(id: string, actorId: string, problemStatus?: ProblemStatement["status"]) {
   const session = await getRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, id);
   await updateProblemOnboardingSession(id, { status: "completed", completedAt: serverTimestamp() as never });
+  if (session?.problemStatementId) await createProblemTimelineEvent(session.problemStatementId, "onboarding_completed", session.sessionTitle || "Onboarding completed", actorId, { resourceId: id }, session.visibility || "admin_only");
   if (session?.problemStatementId && problemStatus) await updateProblemStatus(session.problemStatementId, problemStatus, actorId);
 }
 export async function getOnboardingSessionsForProblem(problemStatementId: string) {
@@ -1642,7 +1666,8 @@ export async function createQuestionnaireResponse(data: Omit<QuestionnaireRespon
   const actorId = data.submittedByAdminId || data.createdBy || data.respondentId || "";
   const responses = data.responses || data.answers || {};
   const created = await createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, responses, answers: data.answers || responses, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
-  await linkCreatedResource(data.problemStatementId, { type: "questionnaire_response", collection: COLLECTIONS.questionnaireResponses, resourceId: created.id, title: data.templateTitle || "Questionnaire response", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
+  await linkCreatedResource(data.problemStatementId, { type: "questionnaire_response", resourceType: "questionnaire_response", collection: COLLECTIONS.questionnaireResponses, resourceId: created.id, title: data.templateTitle || "Questionnaire response", visibility: data.visibility || "admin_only", status: (data.status || "draft") as PlatformStatus }, actorId);
+  await createProblemTimelineEvent(data.problemStatementId, data.status === "completed" ? "questionnaire_completed" : "questionnaire_created", data.templateTitle || "Questionnaire response created", actorId, { resourceId: created.id }, data.visibility || "admin_only");
   if (data.sessionId) await updateProblemOnboardingSession(data.sessionId, { linkedQuestionnaireResponseIds: arrayUnion(created.id) as never });
   return created;
 }
@@ -1650,7 +1675,9 @@ export async function updateQuestionnaireResponse(id: string, patch: Partial<Que
   await updateRecord(COLLECTIONS.questionnaireResponses, id, { ...patch, answers: patch.answers || patch.responses, responses: patch.responses || patch.answers, updatedAt: serverTimestamp() });
 }
 export async function completeQuestionnaireResponse(id: string, answers: Record<string, unknown>, actorId: string) {
+  const response = await getRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, id);
   await updateQuestionnaireResponse(id, { answers, responses: answers, status: "completed", submittedByAdminId: actorId, completedAt: serverTimestamp() as never });
+  if (response?.problemStatementId) await createProblemTimelineEvent(response.problemStatementId, "questionnaire_completed", response.templateTitle || "Questionnaire completed", actorId, { resourceId: id }, response.visibility || "admin_only");
 }
 export async function getQuestionnaireResponsesForProblem(problemStatementId: string) {
   return listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]);
@@ -1663,7 +1690,8 @@ export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt"
 }
 export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
   const created = await createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, title: data.title || data.meetingTitle || "Meeting log", occurredAt: data.occurredAt || data.meetingDate, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
-  await linkCreatedResource(data.problemStatementId, { type: "meeting_log", collection: COLLECTIONS.meetingLogs, resourceId: created.id, title: data.meetingTitle || data.title || "Meeting log", visibility: data.visibility || "admin_only", status: data.status || "completed" }, data.createdBy || "");
+  await linkCreatedResource(data.problemStatementId, { type: "meeting_log", resourceType: "meeting_log", collection: COLLECTIONS.meetingLogs, resourceId: created.id, title: data.meetingTitle || data.title || "Meeting log", visibility: data.visibility || "admin_only", status: data.status || "completed" }, data.createdBy || "");
+  await createProblemTimelineEvent(data.problemStatementId, "meeting_logged", data.meetingTitle || data.title || "Meeting logged", data.createdBy || "", { resourceId: created.id }, data.visibility || "admin_only");
   return created;
 }
 export async function updateMeetingLog(id: string, patch: Partial<MeetingLog>) {
@@ -1679,7 +1707,7 @@ export async function createTestimonialRating(data: Omit<TestimonialRating, "id"
   return createRecord<TestimonialRating>(COLLECTIONS.testimonialRatings, { ...data, status: data.status || "under_review", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<TestimonialRating, "id">>);
 }
 export const getLinkedProblemResources = cache(async (problemStatementId: string) => {
-  const [onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions, successStories, testimonialRatings] = await Promise.all([
+  const [onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, fileLinks, competitions, discussions, successStories, testimonialRatings] = await Promise.all([
     listCollection<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     listCollection<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     getResearchByProblem(problemStatementId).catch(() => []),
@@ -1687,15 +1715,45 @@ export const getLinkedProblemResources = cache(async (problemStatementId: string
     listCollection<SOPDocument>(COLLECTIONS.sopDocuments, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     listCollection<MeetingLog>(COLLECTIONS.meetingLogs, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
+    listCollection<FileLink>(COLLECTIONS.fileLinks, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     getCompetitionsByProblem(problemStatementId).catch(() => []),
     getCommunityByProblem(problemStatementId).catch(() => []),
     listCollection<SuccessStory>(COLLECTIONS.successStories, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
     listCollection<TestimonialRating>(COLLECTIONS.testimonialRatings, [where("problemStatementId", "==", problemStatementId), limit(50)]).catch(() => []),
   ]);
-  return { onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, competitions, discussions: discussions as DiscussionPost[], successStories, testimonialRatings };
+  return { onboardingSessions, questionnaireResponses, researchItems, knowledgeAssets, sopDocuments, pilotTracks, meetingLogs, fileLinks, competitions, discussions: discussions as DiscussionPost[], successStories, testimonialRatings };
 });
 export async function upsertConstitutionDocument(id: string, data: Omit<ConstitutionDocument, "id">) { return upsertRecord(COLLECTIONS.constitutionDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
 export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
+
+export async function getAdminProblemWorkspaceMetrics() {
+  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents] = await Promise.all([
+    getCountFromServer(ref(COLLECTIONS.problemStatements)),
+    getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "submitted")])),
+    getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "under_review")])),
+    getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "in", ["needs_more_info", "needs_information"])])),
+    getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "onboarded")])),
+    getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "published")])),
+    getCountFromServer(ref(COLLECTIONS.problemOnboardingSessions)),
+    getCountFromServer(ref(COLLECTIONS.questionnaireResponses)),
+    getCountFromServer(ref(COLLECTIONS.meetingLogs)),
+    getCountFromServer(ref(COLLECTIONS.fileLinks)),
+    getCountFromServer(ref(COLLECTIONS.timelineEvents)),
+  ]);
+  return {
+    totalProblems: totalProblems.data().count,
+    submittedProblems: submittedProblems.data().count,
+    underReview: underReview.data().count,
+    needsMoreInfo: needsMoreInfo.data().count,
+    onboarded: onboarded.data().count,
+    published: published.data().count,
+    onboardingSessions: onboardingSessions.data().count,
+    questionnaireResponses: questionnaireResponses.data().count,
+    meetingLogs: meetingLogs.data().count,
+    fileLinks: fileLinks.data().count,
+    timelineEvents: timelineEvents.data().count,
+  };
+}
 
 export async function globalSearch(term: string): Promise<SearchResult[]> {
   const needle = term.toLowerCase();
@@ -1784,8 +1842,11 @@ export const getMyProblemStatements = cache(async (userId: string) =>
 export const getPublicProblemStatements = getProblemStatements;
 export const getAdminProblemStatements = getAllProblemStatements;
 export async function updateProblemStatement(id: string, patch: Partial<ProblemStatement>, actorId?: string) {
+  const before = await getProblemStatementById(id).catch(() => null);
   await updateRecord(COLLECTIONS.problemStatements, id, patch as Record<string, unknown>);
   if (actorId) await logAudit({ actorId, action: "problem_updated", collectionName: COLLECTIONS.problemStatements, documentId: id, after: patch });
+  if (actorId && before && patch.status && patch.status !== before.status) await createProblemTimelineEvent(id, patch.status === "published" ? "problem_published" : patch.status === "archived" ? "problem_archived" : "status_changed", `Status changed to ${patch.status}`, actorId, { from: before.status, to: patch.status }, patch.visibility || before.visibility || "submitter_only");
+  if (actorId && before && patch.visibility && patch.visibility !== before.visibility) await createProblemTimelineEvent(id, "visibility_changed", `Visibility changed to ${patch.visibility}`, actorId, { from: before.visibility, to: patch.visibility }, patch.visibility);
 }
 export async function updateProblemStatus(id: string, status: ProblemStatement["status"], actorId: string, notes?: string) {
   const patch: Partial<ProblemStatement> = { status, adminReviewStatus: status, reviewedAt: serverTimestamp() as never };
@@ -1811,27 +1872,60 @@ function resourceIdField(type: LinkedResource["type"]) {
     sop_document: "sopIds",
     knowledge_asset: "knowledgeAssetIds",
     research: "researchItemIds",
+    research_item: "researchItemIds",
     pilot_track: "pilotTrackIds",
     meeting_log: "meetingLogIds",
     competition: "competitionIds",
     community: "discussionPostIds",
+    discussion: "discussionPostIds",
+    file_link: "attachments",
   };
   return fields[type];
 }
-export async function addLinkedResourceToProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+export async function addLinkedResourceToProblem(problem: ProblemStatement | string, resource: LinkedResource, actorId: string) {
+  const loadedProblem = typeof problem === "string" ? await getProblemStatementById(problem) : problem;
+  if (!loadedProblem) return;
   const field = resourceIdField(resource.type);
-  const linkedResources = [...(problem.linkedResources || []), { ...resource, linkedAt: new Date().toISOString(), linkedBy: actorId }];
+  const linkedResources = [...(loadedProblem.linkedResources || []), { ...resource, problemStatementId: loadedProblem.id, resourceType: resource.resourceType || resource.type, linkedAt: new Date().toISOString(), linkedBy: actorId }];
   const patch: Partial<ProblemStatement> = { linkedResources };
-  if (field) patch[field] = Array.from(new Set([...(problem[field] as string[] | undefined || []), resource.resourceId])) as never;
-  return updateProblemStatement(problem.id, patch, actorId);
+  if (field) patch[field] = Array.from(new Set([...(loadedProblem[field] as string[] | undefined || []), resource.resourceId])) as never;
+  await createRecord<LinkedResource>(COLLECTIONS.linkedResources, { ...resource, problemStatementId: loadedProblem.id, resourceType: resource.resourceType || resource.type, createdBy: actorId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<LinkedResource, "id">>).catch(() => undefined);
+  return updateProblemStatement(loadedProblem.id, patch, actorId);
 }
-export async function removeLinkedResourceFromProblem(problem: ProblemStatement, resource: LinkedResource, actorId: string) {
+export async function removeLinkedResourceFromProblem(problem: ProblemStatement | string, resource: LinkedResource, actorId: string) {
+  const loadedProblem = typeof problem === "string" ? await getProblemStatementById(problem) : problem;
+  if (!loadedProblem) return;
   const field = resourceIdField(resource.type);
-  const linkedResources = (problem.linkedResources || []).filter((item) => !(item.type === resource.type && item.resourceId === resource.resourceId));
+  const linkedResources = (loadedProblem.linkedResources || []).filter((item) => !(item.type === resource.type && item.resourceId === resource.resourceId));
   const patch: Partial<ProblemStatement> = { linkedResources };
-  if (field) patch[field] = ((problem[field] as string[] | undefined) || []).filter((id) => id !== resource.resourceId) as never;
-  return updateProblemStatement(problem.id, patch, actorId);
+  if (field) patch[field] = ((loadedProblem[field] as string[] | undefined) || []).filter((id) => id !== resource.resourceId) as never;
+  return updateProblemStatement(loadedProblem.id, patch, actorId);
 }
+
+export async function getLinkedResourcesForProblem(problemStatementId: string) {
+  const problem = await getProblemStatementById(problemStatementId);
+  const collectionRows = await listCollection<LinkedResource>(COLLECTIONS.linkedResources, [where("problemStatementId", "==", problemStatementId), limit(100)]).catch(() => []);
+  const embedded = (problem?.linkedResources || []).map((item) => ({ ...item, problemStatementId, resourceType: item.resourceType || item.type }));
+  return [...embedded, ...collectionRows];
+}
+
+export async function getLinkedResourceCountsForProblem(problemStatementId: string) {
+  const resources = await getLinkedResourcesForProblem(problemStatementId);
+  return resources.reduce<Record<string, number>>((counts, item) => {
+    const key = item.resourceType || item.type;
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+export async function createFileLink(data: Omit<FileLink, "id" | "createdAt" | "updatedAt">) {
+  const created = await createRecord<FileLink>(COLLECTIONS.fileLinks, { ...data, visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<FileLink, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "file_link", resourceType: "file_link", collection: COLLECTIONS.fileLinks, resourceId: created.id, title: data.title, description: data.description, url: data.url, visibility: data.visibility || "admin_only", status: "active" }, data.createdBy || "");
+  await createProblemTimelineEvent(data.problemStatementId, "file_added", data.title || "File link added", data.createdBy || "", { resourceId: created.id, url: data.url }, data.visibility || "admin_only");
+  return created;
+}
+export async function updateFileLink(id: string, patch: Partial<FileLink>) { return updateRecord(COLLECTIONS.fileLinks, id, patch as Record<string, unknown>); }
+export async function deleteFileLink(id: string) { return deleteRecord(COLLECTIONS.fileLinks, id); }
 
 export const getProblemStatementsByCreator = getMyProblemStatements;
 export const getProblemReviews = cache(async (problemStatementId: string) =>

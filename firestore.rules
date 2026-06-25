@@ -32,8 +32,11 @@ service cloud.firestore {
     function submitterEditableStatus() { return resource.data.status in ['submitted', 'needs_more_info']; }
     function submitterProblemPatchOnly() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['title', 'shortDescription', 'detailedDescription', 'summary', 'description', 'problemDescription', 'subCategory', 'affectedProcess', 'problemFrequency', 'urgency', 'estimatedImpact', 'currentWorkaround', 'expectedOutcome', 'availableData', 'attachmentsOrDriveLinks', 'attachments', 'tags', 'contactConsent', 'updatedAt']); }
     function linkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(resource.data.problemStatementId)); }
+    function incomingLinkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(request.resource.data.problemStatementId)); }
     function linkedProblemSubmitter() { return signedIn() && exists(/databases/$(database)/documents/problem_statements/$(resource.data.problemStatementId)) && (linkedProblem().data.createdBy == request.auth.uid || linkedProblem().data.submittedByUserId == request.auth.uid || linkedProblem().data.submitterId == request.auth.uid || request.auth.uid in linkedProblem().data.ownerIds); }
     function linkedOnboardingVisible() { return platformAdmin() || (resource.data.visibility == 'public') || (signedIn() && resource.data.visibility == 'member_only') || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public']); }
+    function linkedWorkspaceVisible() { return platformAdmin() || resource.data.visibility == 'public' || (signedIn() && resource.data.visibility == 'member_only') || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public']); }
+    function safeWorkspaceCreate() { return platformAdmin() && request.resource.data.visibility in ['admin_only', 'submitter_only', 'member_only', 'public']; }
 
     match /users/{uid} {
       allow read: if signedIn() && (uid == request.auth.uid || platformAdmin());
@@ -80,6 +83,9 @@ service cloud.firestore {
     match /sop_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
     match /pilot_tracks/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
     match /meeting_logs/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
+    match /linked_resources/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
+    match /timeline_events/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
+    match /file_links/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
     match /problem_onboarding_sessions/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
     match /questionnaire_responses/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
     match /success_stories/{id} { allow read: if canReadVisible(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
