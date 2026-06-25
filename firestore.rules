@@ -132,6 +132,19 @@ service cloud.firestore {
     match /execution_reviews/{id} { allow read, write: if platformAdmin(); }
     match /decision_records/{id} { allow read: if platformAdmin(); allow write: if platformAdmin(); }
     match /evidence_records/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.visibility == 'internal_member' && resource.data.uploadedBy == request.auth.uid); allow create: if platformAdmin() || (signedIn() && request.resource.data.uploadedBy == request.auth.uid && request.resource.data.visibility == 'internal_member'); allow update, delete: if platformAdmin(); }
+
+    function contributionOwner() { return signedIn() && resource.data.contributorUserId == request.auth.uid; }
+    function contributionIncomingOwner() { return signedIn() && request.resource.data.contributorUserId == request.auth.uid; }
+    function internalContributionVisible() { return isMember() && resource.data.visibility == 'internal_member'; }
+    function claimEditableByOwner() { return signedIn() && resource.data.contributorUserId == request.auth.uid && resource.data.status in ['submitted','needs_revision']; }
+    function claimSafeOwnerPatch() { return request.resource.data.contributorUserId == resource.data.contributorUserId && request.resource.data.status == resource.data.status && !request.resource.data.keys().hasAny(['approvedScore','reviewerId','reviewerName','reviewedAt']); }
+    match /contribution_records/{id} { allow read: if platformAdmin() || contributionOwner() || internalContributionVisible(); allow create, update, delete: if platformAdmin(); }
+    match /contribution_score_rules/{id} { allow read: if platformAdmin() || (isMember() && resource.data.active == true); allow create, update, delete: if platformAdmin(); }
+    match /contribution_review_cycles/{id} { allow read, write: if platformAdmin(); }
+    match /contributor_review_summaries/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.contributorUserId == request.auth.uid && resource.data.finalStatus == 'finalized'); allow create, update, delete: if platformAdmin(); }
+    match /recognition_records/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.contributorUserId == request.auth.uid) || internalContributionVisible(); allow create, update, delete: if platformAdmin(); }
+    match /contribution_claims/{id} { allow read: if platformAdmin() || contributionOwner(); allow create: if contributionIncomingOwner() && request.resource.data.status == 'submitted' && !request.resource.data.keys().hasAny(['approvedScore','reviewerId','reviewerName','reviewedAt']); allow update: if platformAdmin() || (claimEditableByOwner() && claimSafeOwnerPatch()); allow delete: if platformAdmin(); }
+
     match /internal_threads/{id} { allow read, write: if platformAdmin(); }
     match /career_openings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /career_applications/{id} { allow create: if true; allow read, update, delete: if platformAdmin(); }
