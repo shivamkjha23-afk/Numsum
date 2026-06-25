@@ -307,3 +307,16 @@ Admin-only institutional target records for annual, quarterly, monthly and sprin
 
 ### `governance_audit_events`
 Admin-only audit trail for governance documents, amendments and objective targets. Events record entity type, action, actor, description, metadata and creation timestamp.
+
+## Target Execution and Meeting Operating System
+
+Prompt 6B adds private execution collections. They are never public-readable; admins/super-admins manage all records, while assigned members only see and update their own limited execution fields.
+
+- `execution_work_items`: objective-linked executable work with `objectiveTargetId`, optional `workstreamId`, type, priority, status, owners/reviewers, dates, expected output, evidence requirements, related problem/knowledge/research/SOP/pilot/governance IDs, blockers, review notes, and completion notes.
+- `action_items`: meeting/objective/problem/pilot/governance/manual follow-up tasks with owners, reviewers, priority, due dates, evidence, blockers, and completion notes.
+- `meeting_records`: internal daily sync, weekly sprint review, monthly system review, special agenda, onboarding, pilot, and governance meetings with agenda, attendees, blockers, learnings, decisions, action item IDs, linked objectives/problems/pilots/governance documents, minutes, status, and internal visibility.
+- `execution_reviews`: admin-authored daily/weekly/monthly/quarterly/special progress reviews connected to objective targets, KPIs, KRAs, and work items.
+- `decision_records`: admin-written operational/product/governance/financial/strategic/technical decisions linked to meetings, objectives, problems, pilots, or governance documents.
+- `evidence_records`: internal evidence links for objectives, work items, action items, meetings, problem statements, knowledge assets, SOPs, research items, pilots, and governance documents.
+
+Security rules added for these collections enforce admin write authority, assigned-member read access for work/action items and meetings, limited member status/evidence updates, admin-only reviews and decisions, and no public execution reads.

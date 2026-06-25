@@ -21,3 +21,7 @@ KRAs describe responsibility areas with responsible role, owners, expected outco
 ## Lifecycle
 
 Targets begin in `draft`, can be approved into `active`, updated with KPI/progress values, completed, paused or archived. In Prompt 6A, access is admin-only and future public/member viewing is intentionally disabled.
+
+## Prompt 6B execution extension
+
+Objective target detail pages now act as internal execution operating pages. Admins can move from the static objective into work items, meetings, action items, reviews, decisions, and evidence. KPIs can be updated inline, objective progress can be saved, and evidence-based execution records provide the audit trail for daily syncs, weekly sprint reviews, and monthly system reviews.
