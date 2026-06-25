@@ -4,11 +4,19 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function userRole() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? userDoc().data.role : null; }
+    function isMember() { return signedIn() && userRole() in ['member', 'reviewer', 'moderator', 'organization', 'pending_admin', 'admin', 'super_admin']; }
     function isAdmin() { return userRole() in ['admin', 'super_admin']; }
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
-    function isPublic() { return resource.data.visibility == 'public' || resource.data.status == 'public' || resource.data.status == 'published'; }
+    function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['public', 'published', 'active', 'completed']; }
+    function incomingPublicDoc() { return request.resource.data.visibility == 'public' && request.resource.data.status in ['public', 'published', 'active', 'completed']; }
+    function memberVisible() { return signedIn() && resource.data.visibility == 'member_only'; }
+    function hasExistingList(field) { return resource.data.keys().hasAny([field]) && request.auth.uid in resource.data[field]; }
+    function hasIncomingList(field) { return request.resource.data.keys().hasAny([field]) && request.auth.uid in request.resource.data[field]; }
+    function teamVisible() { return signedIn() && resource.data.visibility == 'team_only' && (hasExistingList('teamMemberIds') || hasExistingList('members') || hasExistingList('ownerIds')); }
+    function submitterVisible() { return signedIn() && (resource.data.createdBy == request.auth.uid || resource.data.submittedBy == request.auth.uid || resource.data.submitterId == request.auth.uid || hasExistingList('ownerIds')); }
+    function canReadVisible() { return platformAdmin() || isPublicDoc() || memberVisible() || teamVisible() || submitterVisible(); }
     function createsSelfProfile(uid) {
       return signedIn()
         && uid == request.auth.uid
@@ -18,20 +26,17 @@ service cloud.firestore {
           || (isBootstrapAdminEmail() && request.resource.data.role in ['admin', 'super_admin'])
         );
     }
-    function ownsExisting() { return signedIn() && (resource.data.createdBy == request.auth.uid || resource.data.submittedBy == request.auth.uid || resource.data.author == request.auth.uid || resource.data.userId == request.auth.uid || resource.data.leader == request.auth.uid || request.auth.uid in resource.data.members); }
-    function ownsIncoming() { return signedIn() && (request.resource.data.createdBy == request.auth.uid || request.resource.data.submittedBy == request.auth.uid || request.resource.data.author == request.auth.uid || request.resource.data.userId == request.auth.uid || request.resource.data.leader == request.auth.uid || request.auth.uid in request.resource.data.members); }
+    function ownsExisting() { return signedIn() && (resource.data.createdBy == request.auth.uid || resource.data.submittedBy == request.auth.uid || resource.data.submitterId == request.auth.uid || resource.data.author == request.auth.uid || resource.data.userId == request.auth.uid || resource.data.leader == request.auth.uid || hasExistingList('members') || hasExistingList('ownerIds')); }
+    function ownsIncoming() { return signedIn() && (request.resource.data.createdBy == request.auth.uid || request.resource.data.submittedBy == request.auth.uid || request.resource.data.submitterId == request.auth.uid || request.resource.data.author == request.auth.uid || request.resource.data.userId == request.auth.uid || request.resource.data.leader == request.auth.uid || hasIncomingList('members') || hasIncomingList('ownerIds')); }
 
     match /users/{uid} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (uid == request.auth.uid || platformAdmin());
       allow create: if createsSelfProfile(uid) || platformAdmin();
       allow update: if platformAdmin() || (signedIn() && uid == request.auth.uid && (request.resource.data.role == resource.data.role || request.resource.data.role == 'pending_admin'));
       allow delete: if isSuperAdmin();
     }
 
-    match /bootstrap_admins/{email} {
-      allow read, write: if platformAdmin() || (isBootstrapAdminEmail() && email == request.auth.token.email);
-    }
-
+    match /bootstrap_admins/{email} { allow read, write: if platformAdmin() || (isBootstrapAdminEmail() && email == request.auth.token.email); }
     match /system_documents/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /settings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /role_definitions/{id} { allow read: if signedIn(); allow write: if platformAdmin(); }
@@ -49,55 +54,45 @@ service cloud.firestore {
     match /admin_applications/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin(); }
 
     match /problem_statements/{id} {
-      allow read: if isPublic() || ownsExisting() || signedIn();
-      allow create: if platformAdmin() || (signedIn() && ownsIncoming());
-      allow update: if platformAdmin() || ownsExisting();
-      allow delete: if platformAdmin() || ownsExisting();
+      allow read: if canReadVisible();
+      allow create: if platformAdmin() || (signedIn() && ownsIncoming() && request.resource.data.visibility in ['submitter_only', 'admin_only']);
+      allow update: if platformAdmin() || (ownsExisting() && resource.data.visibility == 'submitter_only' && request.resource.data.visibility == resource.data.visibility);
+      allow delete: if platformAdmin();
     }
-    match /challenges/{document=**} {
-      allow read: if true;
-      allow write: if signedIn();
-    }
-    match /problem_reviews/{id} { allow read: if signedIn(); allow create, update, delete: if platformAdmin(); }
+    match /challenges/{document=**} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /problem_reviews/{id} { allow read: if platformAdmin() || submitterVisible(); allow create, update, delete: if platformAdmin(); }
 
-    match /research_posts/{id} {
-      allow read: if isPublic() || ownsExisting() || signedIn();
-      allow create: if platformAdmin() || (signedIn() && ownsIncoming());
-      allow update, delete: if platformAdmin() || ownsExisting();
-    }
-    match /knowledge_assets/{id} {
-      allow read: if isPublic() || signedIn();
-      allow create: if signedIn();
-      allow update, delete: if platformAdmin() || ownsExisting();
-    }
-    match /community_posts/{id} {
-      allow read: if isPublic() || signedIn();
-      allow create: if platformAdmin() || (signedIn() && ownsIncoming() && (request.resource.data.linkedEntityType == 'general' || request.resource.data.linkedEntityId is string));
-      allow update, delete: if platformAdmin() || ownsExisting() || signedIn();
-    }
+    match /research_posts/{id} { allow read: if canReadVisible(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /knowledge_assets/{id} { allow read: if canReadVisible(); allow create: if signedIn(); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /sop_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /pilot_tracks/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /meeting_logs/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /problem_onboarding_sessions/{id} { allow read: if platformAdmin() || submitterVisible(); allow write: if platformAdmin(); }
+    match /questionnaire_responses/{id} { allow read: if platformAdmin() || submitterVisible(); allow write: if platformAdmin(); }
+    match /success_stories/{id} { allow read: if canReadVisible(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
+    match /testimonial_ratings/{id} { allow read: if canReadVisible(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
+
+    match /community_posts/{id} { allow read: if canReadVisible(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
     match /comments/{id} { allow read: if signedIn(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
     match /replies/{id} { allow read: if signedIn(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
     match /community_analytics/{id} { allow read: if platformAdmin(); allow create, update: if signedIn(); allow delete: if platformAdmin(); }
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
 
-    match /competitions/{id} {
-      allow read: if isPublic() || signedIn();
-      allow create: if signedIn();
-      allow update: if platformAdmin() || signedIn();
-      allow delete: if platformAdmin();
-    }
-    match /competition_teams/{id} { allow read: if signedIn(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
+    match /competitions/{id} { allow read: if canReadVisible(); allow create, update, delete: if platformAdmin(); }
+    match /competition_teams/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
     match /competition_submissions/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
 
     match /organizations/{id} { allow read: if true; allow create: if signedIn(); allow update, delete: if platformAdmin(); }
     match /team_members/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
-    match /questionnaire_templates/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
+    match /questionnaire_templates/{id} { allow read: if signedIn() || platformAdmin(); allow create, update, delete: if platformAdmin(); }
+    match /constitution_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    match /objective_target_documents/{id} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
     match /internal_threads/{id} { allow read, write: if platformAdmin(); }
     match /career_openings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /career_applications/{id} { allow create: if true; allow read, update, delete: if platformAdmin(); }
     match /private_collaboration_groups/{id} { allow read, write: if signedIn() && (platformAdmin() || ownsExisting() || ownsIncoming()); }
     match /bookmarks/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
-    match /msme_cases/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
+    match /msme_cases/{id} { allow read: if isPublicDoc(); allow create, update, delete: if platformAdmin(); }
 
     match /{document=**} { allow read, write: if isSuperAdmin(); }
   }
