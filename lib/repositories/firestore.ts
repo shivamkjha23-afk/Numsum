@@ -69,6 +69,9 @@ import type {
   SuccessStory,
   TestimonialRating,
   PilotTrack,
+  PilotMilestone,
+  PilotUpdate,
+  PilotMetric,
   MeetingLog,
   SearchResult,
   SystemStats,
@@ -90,6 +93,9 @@ export const COLLECTIONS = {
   knowledgeAssets: "knowledge_assets",
   sopDocuments: "sop_documents",
   pilotTracks: "pilot_tracks",
+  pilotMilestones: "pilot_milestones",
+  pilotUpdates: "pilot_updates",
+  pilotMetrics: "pilot_metrics",
   meetingLogs: "meeting_logs",
   linkedResources: "linked_resources",
   timelineEvents: "timeline_events",
@@ -1758,8 +1764,52 @@ export async function archiveSOPDocument(id: string, actorId = "") { const exist
 export async function createNewSOPVersion(id: string, actorId = "") { const existing = await getRecord<SOPDocument>(COLLECTIONS.sopDocuments, id); if (!existing) throw new Error("SOP not found"); return createSOPDocument({ ...existing, title: `${existing.title} v${(existing.version || 1) + 1}`, version: (existing.version || 1) + 1, status: "draft", visibility: "admin_only", createdBy: actorId || existing.createdBy, problemStatementId: existing.problemStatementId }); }
 
 export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt" | "updatedAt">) {
-  return createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+  if (!data.problemStatementId) throw new Error("Pilot tracks must be linked to a problem statement.");
+  const created = await createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "proposed", visibility: data.visibility || "admin_only", priority: data.priority || "medium", riskLevel: data.riskLevel || "unknown", implementationDifficulty: data.implementationDifficulty || "unknown", teamMemberIds: data.teamMemberIds || [], evidenceLinks: data.evidenceLinks || [], attachmentLinks: data.attachmentLinks || [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+  await linkCreatedResource(data.problemStatementId, { type: "pilot_track", resourceType: "pilot_track", collection: COLLECTIONS.pilotTracks, resourceId: created.id, title: data.title, description: data.pilotObjective || data.problemSummary || data.summary, url: data.driveLink, visibility: data.visibility || "admin_only", status: (data.status || "proposed") as PlatformStatus }, data.createdBy || "");
+  await createProblemTimelineEvent(data.problemStatementId, "pilot_created", data.title || "Pilot created", data.createdBy || "", { resourceId: created.id, status: data.status || "proposed" }, data.visibility || "admin_only");
+  return created;
 }
+export async function updatePilotTrack(id: string, patch: Partial<PilotTrack>, actorId = "") {
+  const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
+  await updateRecord(COLLECTIONS.pilotTracks, id, { ...patch, updatedAt: serverTimestamp() });
+  if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "pilot_updated", patch.title || existing.title || "Pilot updated", actorId, { resourceId: id }, patch.visibility || existing.visibility || "admin_only");
+}
+export const getPilotTrackById = cache(async (id: string) => getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id));
+export const getPilotTracksForProblem = cache(async (problemStatementId: string) => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]));
+export const getAdminPilotTracks = cache(async () => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [orderBy("createdAt", "desc"), limit(200)]));
+export const getPublicPilotTracks = cache(async () => (await listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("visibility", "==", "public"), limit(100)])).filter((p) => ["completed", "scaled"].includes(p.status || "") || !!p.publishedAt));
+export async function updatePilotStatus(id: string, status: PilotTrack["status"], actorId = "") {
+  const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
+  const patch: Partial<PilotTrack> = { status };
+  if (status === "approved") { patch.approvedBy = actorId; patch.approvedAt = serverTimestamp() as never; }
+  if (status === "active" && !existing?.startDate) patch.startDate = serverTimestamp() as never;
+  if (status === "completed" || status === "scaled") { patch.completedAt = serverTimestamp() as never; patch.actualEndDate = serverTimestamp() as never; }
+  await updateRecord(COLLECTIONS.pilotTracks, id, patch as Record<string, unknown>);
+  if (existing?.problemStatementId) {
+    await createProblemTimelineEvent(existing.problemStatementId, "pilot_status_changed", `Pilot status changed to ${status}`, actorId, { resourceId: id, from: existing.status, to: status }, existing.visibility || "admin_only");
+    if (status === "active") await createProblemTimelineEvent(existing.problemStatementId, "pilot_started", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only");
+    if (status === "completed" || status === "scaled") await createProblemTimelineEvent(existing.problemStatementId, "pilot_completed", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only");
+  }
+}
+export async function updatePilotVisibility(id: string, visibility: PilotTrack["visibility"], actorId = "") {
+  const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
+  await updatePilotTrack(id, { visibility, ...(visibility === "public" ? { publishedAt: serverTimestamp() as never } : {}) }, actorId);
+  if (existing?.problemStatementId && visibility === "public") await createProblemTimelineEvent(existing.problemStatementId, "pilot_published", existing.title, actorId, { resourceId: id }, "public");
+}
+export async function archivePilotTrack(id: string, actorId = "") { return updatePilotStatus(id, "cancelled", actorId); }
+export async function completePilotTrack(id: string, patch: Partial<PilotTrack>, actorId = "") { await updatePilotTrack(id, { ...patch, status: "completed", completedAt: serverTimestamp() as never, actualEndDate: serverTimestamp() as never }, actorId); const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "pilot_completed", existing.title, actorId, { resourceId: id }, existing.visibility || "admin_only"); }
+export async function createPilotMilestone(data: Omit<PilotMilestone, "id" | "createdAt" | "updatedAt">) { const created = await createRecord<PilotMilestone>(COLLECTIONS.pilotMilestones, { ...data, status: data.status || "pending", evidenceLinks: data.evidenceLinks || [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotMilestone, "id">>); await createProblemTimelineEvent(data.problemStatementId, "pilot_milestone_added", data.title, data.ownerId || "", { resourceId: created.id, pilotTrackId: data.pilotTrackId }, "admin_only"); return created; }
+export async function updatePilotMilestone(id: string, patch: Partial<PilotMilestone>) { return updateRecord(COLLECTIONS.pilotMilestones, id, patch as Record<string, unknown>); }
+export const getPilotMilestonesForPilot = cache(async (pilotTrackId: string) => listCollection<PilotMilestone>(COLLECTIONS.pilotMilestones, [where("pilotTrackId", "==", pilotTrackId), limit(100)]));
+export async function completePilotMilestone(id: string, actorId = "") { const existing = await getRecord<PilotMilestone>(COLLECTIONS.pilotMilestones, id); await updatePilotMilestone(id, { status: "completed", completedDate: serverTimestamp() as never }); if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "pilot_milestone_completed", existing.title, actorId, { resourceId: id, pilotTrackId: existing.pilotTrackId }, "admin_only"); }
+export async function createPilotUpdate(data: Omit<PilotUpdate, "id" | "createdAt" | "updatedAt">) { const created = await createRecord<PilotUpdate>(COLLECTIONS.pilotUpdates, { ...data, updateDate: data.updateDate || serverTimestamp(), visibility: data.visibility || "admin_only", evidenceLinks: data.evidenceLinks || [], actionItems: data.actionItems || [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotUpdate, "id">>); await createProblemTimelineEvent(data.problemStatementId, "pilot_update_added", data.title, data.createdBy || "", { resourceId: created.id, pilotTrackId: data.pilotTrackId }, data.visibility || "admin_only"); return created; }
+export async function updatePilotUpdate(id: string, patch: Partial<PilotUpdate>) { return updateRecord(COLLECTIONS.pilotUpdates, id, patch as Record<string, unknown>); }
+export const getPilotUpdatesForPilot = cache(async (pilotTrackId: string) => listCollection<PilotUpdate>(COLLECTIONS.pilotUpdates, [where("pilotTrackId", "==", pilotTrackId), limit(100)]));
+export async function createPilotMetric(data: Omit<PilotMetric, "id" | "createdAt" | "updatedAt">) { const created = await createRecord<PilotMetric>(COLLECTIONS.pilotMetrics, { ...data, improvementDirection: data.improvementDirection || "decrease_is_good", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotMetric, "id">>); await createProblemTimelineEvent(data.problemStatementId, "pilot_metric_added", data.metricName, "", { resourceId: created.id, pilotTrackId: data.pilotTrackId }, "admin_only"); return created; }
+export async function updatePilotMetric(id: string, patch: Partial<PilotMetric>) { return updateRecord(COLLECTIONS.pilotMetrics, id, patch as Record<string, unknown>); }
+export const getPilotMetricsForPilot = cache(async (pilotTrackId: string) => listCollection<PilotMetric>(COLLECTIONS.pilotMetrics, [where("pilotTrackId", "==", pilotTrackId), limit(100)]));
+export async function convertPilotToSuccessStory(pilotId: string, actorId = "") { const pilot = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, pilotId); if (!pilot || !pilot.problemStatementId) throw new Error("Completed linked pilot required."); if (!["completed", "scaled"].includes(pilot.status || "")) throw new Error("Only completed pilots can become success stories."); const created = await createSuccessStory({ problemStatementId: pilot.problemStatementId, pilotTrackId: pilot.id, title: pilot.title, organizationName: pilot.visibility === "public" ? pilot.partnerOrganization : undefined, industrySegment: pilot.industrySegment, challengeSummary: pilot.problemSummary, interventionSummary: pilot.proposedSolution, measurableImpact: pilot.finalResults || pilot.expectedImpact || String(pilot.estimatedSavings || ""), publicSummary: pilot.publicSummary || pilot.submitterVisibleSummary || pilot.finalResults || "", visibility: "admin_only", status: "draft", createdBy: actorId, summary: pilot.publicSummary || pilot.finalResults || pilot.title }); await createProblemTimelineEvent(pilot.problemStatementId, "success_story_created", `Success story drafted: ${pilot.title}`, actorId, { resourceId: created.id, pilotTrackId: pilot.id }, "admin_only"); return created; }
 export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
   const created = await createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, title: data.title || data.meetingTitle || "Meeting log", occurredAt: data.occurredAt || data.meetingDate, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
   await linkCreatedResource(data.problemStatementId, { type: "meeting_log", resourceType: "meeting_log", collection: COLLECTIONS.meetingLogs, resourceId: created.id, title: data.meetingTitle || data.title || "Meeting log", visibility: data.visibility || "admin_only", status: data.status || "completed" }, data.createdBy || "");
@@ -1799,7 +1849,7 @@ export async function upsertConstitutionDocument(id: string, data: Omit<Constitu
 export async function upsertObjectiveTargetDocument(id: string, data: Omit<ObjectiveTargetDocument, "id">) { return upsertRecord(COLLECTIONS.objectiveTargetDocuments, id, { ...data, updatedAt: serverTimestamp() }); }
 
 export async function getAdminProblemWorkspaceMetrics() {
-  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents, knowledgeAssets, knowledgeUnderReview, knowledgePublished, sopDocuments, sopDraftReview, sopApprovedPublished, researchItems, researchUnderReview, researchPublished, technologyWatchItems, highPriorityWatchItems, caseStudies, linkedResearchItems, unlinkedResearchItems] = await Promise.all([
+  const [totalProblems, submittedProblems, underReview, needsMoreInfo, onboarded, published, onboardingSessions, questionnaireResponses, meetingLogs, fileLinks, timelineEvents, knowledgeAssets, knowledgeUnderReview, knowledgePublished, sopDocuments, sopDraftReview, sopApprovedPublished, researchItems, researchUnderReview, researchPublished, technologyWatchItems, highPriorityWatchItems, caseStudies, linkedResearchItems, unlinkedResearchItems, totalPilots, proposedPilots, approvedPlannedPilots, activePilots, pausedPilots, completedPilots, failedCancelledPilots, publicSuccessStories] = await Promise.all([
     getCountFromServer(ref(COLLECTIONS.problemStatements)),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "submitted")])),
     getCountFromServer(queryFor(COLLECTIONS.problemStatements, [where("status", "==", "under_review")])),
@@ -1825,6 +1875,14 @@ export async function getAdminProblemWorkspaceMetrics() {
     getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("researchType", "in", ["startup_case_study", "msme_success_story"])])),
     getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("generalResearch", "==", false)])),
     getCountFromServer(queryFor(COLLECTIONS.researchPosts, [where("generalResearch", "==", true)])),
+    getCountFromServer(ref(COLLECTIONS.pilotTracks)),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "==", "proposed")])),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "in", ["approved", "planned"])])),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "==", "active")])),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "==", "paused")])),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "in", ["completed", "scaled"])])),
+    getCountFromServer(queryFor(COLLECTIONS.pilotTracks, [where("status", "in", ["failed", "cancelled"])])),
+    getCountFromServer(queryFor(COLLECTIONS.successStories, [where("visibility", "==", "public"), where("status", "==", "published")])),
   ]);
   return {
     totalProblems: totalProblems.data().count,
@@ -1852,6 +1910,14 @@ export async function getAdminProblemWorkspaceMetrics() {
     caseStudies: caseStudies.data().count,
     linkedResearchItems: linkedResearchItems.data().count,
     unlinkedResearchItems: unlinkedResearchItems.data().count,
+    totalPilots: totalPilots.data().count,
+    proposedPilots: proposedPilots.data().count,
+    approvedPlannedPilots: approvedPlannedPilots.data().count,
+    activePilots: activePilots.data().count,
+    pausedPilots: pausedPilots.data().count,
+    completedPilots: completedPilots.data().count,
+    failedCancelledPilots: failedCancelledPilots.data().count,
+    publicSuccessStories: publicSuccessStories.data().count,
   };
 }
 
