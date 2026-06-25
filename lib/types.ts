@@ -24,15 +24,129 @@ export type DiscussionType = "general" | "problem" | "research" | "competition" 
 export type ResearchStatus = "draft" | "submitted" | "under_review" | "member_only" | "public" | "published" | "archived" | "rejected";
 export type LinkedResourceType = AssociatedType | "file" | "external_link" | "onboarding_session";
 export type DocumentVersionStatus = "draft" | "under_review" | "published" | "archived";
-export type UserProfileType =| "msme_owner"| "msme_representative"| "industrialist" | "researcher" | "student" | "engineer_professional"| "consultant" | "startup_founder"| "academic_institution"| "technology_provider"| "government_incubator_association"| "investor" | "other";
+export type UserProfileType =| "msme_owner"| "msme_representative"| "industrialist" | "researcher" | "student" | "engineer_professional"| "consultant" | "startup_founder"| "academic_institution" | "academic_institution_representative" | "technology_provider"| "government_incubator_association"| "investor" | "other";
 
 export interface FirestoreEntity { id: string; }
 export interface TeamMember extends FirestoreEntity { name: string; institution?: string; degree?: string; discipline?: string; designation?: string; bio?: string; photoUrl?: string; linkedinUrl?: string; displayOrder?: number; createdAt?: DateLike; updatedAt?: DateLike; }
-export interface UserProfile extends FirestoreEntity { uid?: string; displayName?: string; name?: string; email?: string; role?: Role; status?: string; profileComplete?: boolean; organizationId?: string; organizationIds?: string[]; memberModuleEnabled?: boolean; onboardingCompletedAt?: DateLike; createdAt?: DateLike; updatedAt?: DateLike; }
+export interface UserProfile extends FirestoreEntity {
+  uid?: string;
+  displayName?: string;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: Role;
+  status?: string;
+  profileComplete?: boolean;
+  profileCompletedAt?: DateLike;
+  profileType?: UserProfileType;
+  city?: string;
+  state?: string;
+  country?: string;
+  shortBio?: string;
+  professionalSummary?: string;
+  organizationId?: string;
+  organizationIds?: string[];
+  organizationName?: string;
+  organizationType?: string;
+  industrySegment?: string;
+  manufacturingOrServiceFocus?: string;
+  productsOrServices?: string;
+  companySize?: string;
+  website?: string;
+  gstOrUdyam?: string;
+  majorChallenges?: string;
+  institutionName?: string;
+  departmentOrDiscipline?: string;
+  researchInterests?: string;
+  currentRole?: string;
+  portfolioOrLinkedIn?: string;
+  domainExpertise?: string;
+  yearsOfExperience?: string;
+  industriesWorkedWith?: string;
+  startupOrCompanyName?: string;
+  solutionArea?: string;
+  targetIndustries?: string;
+  productStage?: string;
+  skills?: string[];
+  memberModuleEnabled?: boolean;
+  onboardingCompletedAt?: DateLike;
+  createdAt?: DateLike;
+  updatedAt?: DateLike;
+}
 export interface OrganizationProfile extends FirestoreEntity { name: string; publicLabel?: string; industry?: string; description?: string; website?: string; logo?: string; verificationStatus?: "unverified" | "pending" | "verified" | "rejected"; city?: string; state?: string; country?: string; status?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface Organization extends OrganizationProfile {}
 export interface LinkedResource { id?: string; type: LinkedResourceType; collection?: string; resourceId: string; title?: string; visibility?: Visibility; status?: PlatformStatus; url?: string; linkedAt?: DateLike; linkedBy?: string; }
-export interface ProblemStatement extends FirestoreEntity { title: string; summary?: string; description?: string; problemDescription?: string; category?: ProblemCategory | string; questionnaireResponses?: Record<string, unknown>; attachments?: string[]; createdBy?: string; organizationType?: string; visibility?: Visibility; status?: ProblemStatementStatus; createdAt?: DateLike; updatedAt?: DateLike; organization?: string; organizationId?: string; publicOrganizationLabel?: string; problemStatement?: string; submittedBy?: string; assignedResearcher?: string; assignedReviewer?: string; questionnaire?: Record<string, unknown>; adminNotes?: string; submitterId?: string; ownerIds?: string[]; teamIds?: string[]; structuredChallengeId?: string; convertedCompetitionId?: string; linkedResources?: LinkedResource[]; publishedAt?: DateLike; }
+export interface ProblemStatement extends FirestoreEntity {
+  title: string;
+  summary?: string;
+  description?: string;
+  shortDescription?: string;
+  detailedDescription?: string;
+  problemDescription?: string;
+  problemStatement?: string;
+  category?: ProblemCategory | string;
+  subCategory?: string;
+  affectedProcess?: string;
+  problemFrequency?: string;
+  urgency?: "low" | "medium" | "high" | "critical" | string;
+  estimatedImpact?: string;
+  currentWorkaround?: string;
+  expectedOutcome?: string;
+  availableData?: string;
+  questionnaireResponses?: Record<string, unknown>;
+  questionnaire?: Record<string, unknown>;
+  attachments?: string[];
+  attachmentsOrDriveLinks?: string[];
+  tags?: string[];
+  contactConsent?: boolean;
+  createdBy?: string;
+  submittedBy?: string;
+  submittedByUserId?: string;
+  submittedByName?: string;
+  submittedByEmail?: string;
+  submittedByProfileType?: string;
+  submitterId?: string;
+  organizationType?: string;
+  organization?: string;
+  organizationId?: string;
+  organizationName?: string;
+  industrySegment?: string;
+  manufacturingOrServiceFocus?: string;
+  locationCity?: string;
+  locationState?: string;
+  locationCountry?: string;
+  publicOrganizationLabel?: string;
+  visibility?: Visibility;
+  status?: ProblemStatementStatus;
+  adminReviewStatus?: ProblemStatementStatus;
+  priority?: string;
+  assignedAdminId?: string;
+  assignedResearcher?: string;
+  assignedReviewer?: string;
+  adminNotes?: string;
+  submitterVisibleNotes?: string;
+  onboardingRequired?: boolean;
+  onboardingSessionIds?: string[];
+  questionnaireResponseIds?: string[];
+  sopIds?: string[];
+  knowledgeAssetIds?: string[];
+  researchItemIds?: string[];
+  pilotTrackIds?: string[];
+  meetingLogIds?: string[];
+  competitionIds?: string[];
+  discussionPostIds?: string[];
+  ownerIds?: string[];
+  teamIds?: string[];
+  structuredChallengeId?: string;
+  convertedCompetitionId?: string;
+  linkedResources?: LinkedResource[];
+  publishedAt?: DateLike;
+  reviewedAt?: DateLike;
+  reviewedBy?: string;
+  createdAt?: DateLike;
+  updatedAt?: DateLike;
+}
 export type Challenge = ProblemStatement;
 export interface QuestionnaireQuestion { id: string; label: string; type: "text" | "textarea" | "number" | "dropdown" | "select" | "checkbox" | "radio" | "date" | "url" | "email" | "file_link"; required?: boolean; options?: string[]; placeholder?: string; }
 export interface QuestionnaireTemplate extends FirestoreEntity { category: ProblemCategory | string; name?: string; questions: QuestionnaireQuestion[]; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
