@@ -290,3 +290,20 @@ Technology Watch uses the same collection with watch fields such as `watchPriori
 - `success_stories`: admin-created official impact stories linked to a problem and pilot. Public reads require `visibility = public` and `status = published`.
 
 Pilot timeline event types: `pilot_created`, `pilot_updated`, `pilot_status_changed`, `pilot_started`, `pilot_milestone_added`, `pilot_milestone_completed`, `pilot_update_added`, `pilot_metric_added`, `pilot_completed`, `pilot_published`, and `success_story_created`.
+
+## Prompt 6A: Governance and Objective Target Collections
+
+### `governance_documents`
+Admin-only foundational documents for NumSum Labs, including constitution, frozen objective target, governance manual, annual/quarterly/monthly targets, policies, appendices, resolutions and templates. Each document stores `documentType`, `version`, `status`, `visibility`, `summary`, markdown-friendly `content`, ordered `sections`, tags and approval/archive metadata.
+
+### `governance_document_versions`
+Admin-only immutable snapshots created when a document is approved, activated, manually snapshotted or changed through an implemented amendment. Stores document ID, version number, snapshot title/content/sections and change summary.
+
+### `governance_amendments`
+Admin-only amendment proposals linked to governance documents. Tracks amendment type, affected sections, current/proposed text, rationale, expected impact, review/decision notes, approval metadata and implementation timestamp.
+
+### `objective_targets`
+Admin-only institutional target records for annual, quarterly, monthly and sprint periods. Stores objective summary, strategic theme, owners, workstreams, KPIs, KRAs, progress percentage and approval metadata.
+
+### `governance_audit_events`
+Admin-only audit trail for governance documents, amendments and objective targets. Events record entity type, action, actor, description, metadata and creation timestamp.

@@ -77,6 +77,12 @@ import type {
   SystemStats,
   TeamMember,
   UserProfile,
+  GovernanceDocument,
+  GovernanceAmendment,
+  GovernanceDocumentVersion,
+  ObjectiveTarget,
+  GovernanceAuditEvent,
+  GovernanceDocumentType,
 } from "@/lib/types";
 
 export const COLLECTIONS = {
@@ -104,6 +110,11 @@ export const COLLECTIONS = {
   testimonialRatings: "testimonial_ratings",
   constitutionDocuments: "constitution_documents",
   objectiveTargetDocuments: "objective_target_documents",
+  governanceDocuments: "governance_documents",
+  governanceDocumentVersions: "governance_document_versions",
+  governanceAmendments: "governance_amendments",
+  objectiveTargets: "objective_targets",
+  governanceAuditEvents: "governance_audit_events",
   competitions: "competitions",
   collaborationRequests: "collaboration_requests",
   careerOpenings: "career_openings",
@@ -2265,4 +2276,77 @@ export async function updateUserRoleAndStatus(userId: string, reviewerId: string
 
 export async function createMsmeCase(data: Omit<MsmeCase, "id" | "createdAt" | "updatedAt">) {
   return createRecord<MsmeCase>(COLLECTIONS.msmeCases, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MsmeCase, "id">>);
+}
+
+async function logGovernanceEvent(event: Omit<GovernanceAuditEvent, "id" | "createdAt">) {
+  return createRecord<GovernanceAuditEvent>(COLLECTIONS.governanceAuditEvents, { ...event, createdAt: serverTimestamp() } as WithFieldValue<Omit<GovernanceAuditEvent, "id">>);
+}
+const actorId = () => auth.currentUser?.uid || "system";
+
+export async function createGovernanceDocument(data: Partial<GovernanceDocument>) {
+  const docRef = await createRecord<GovernanceDocument>(COLLECTIONS.governanceDocuments, { title: data.title || "Untitled governance document", documentType: data.documentType || "other", version: data.version || 1, status: data.status || "draft", visibility: data.visibility || "admin_only", summary: data.summary || "", content: data.content || "", sections: data.sections || [], tags: data.tags || [], createdBy: data.createdBy || actorId(), updatedBy: data.updatedBy || actorId(), createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<GovernanceDocument, "id">>);
+  await logGovernanceEvent({ entityType: "governance_document", entityId: docRef.id, action: "created", actorUserId: actorId(), description: `Created ${data.title || "governance document"}` });
+  return docRef;
+}
+export async function updateGovernanceDocument(id: string, data: Partial<GovernanceDocument>) {
+  await updateRecord(COLLECTIONS.governanceDocuments, id, { ...data, updatedBy: actorId() });
+  await logGovernanceEvent({ entityType: "governance_document", entityId: id, action: data.status === "under_review" ? "submitted_for_review" : "updated", actorUserId: actorId(), description: "Updated governance document" });
+}
+export const getGovernanceDocumentById = cache(async (id: string) => getRecord<GovernanceDocument>(COLLECTIONS.governanceDocuments, id));
+export const getGovernanceDocuments = cache(async () => listCollection<GovernanceDocument>(COLLECTIONS.governanceDocuments, [orderBy("updatedAt", "desc"), limit(200)]));
+export const getActiveGovernanceDocumentByType = cache(async (documentType: GovernanceDocumentType) => (await listCollection<GovernanceDocument>(COLLECTIONS.governanceDocuments, [where("documentType", "==", documentType), where("status", "==", "active"), limit(1)]))[0] || null);
+export async function createGovernanceDocumentVersion(documentId: string, changeSummary = "Manual version snapshot") {
+  const source = await getRecord<GovernanceDocument>(COLLECTIONS.governanceDocuments, documentId);
+  if (!source) throw new Error("Governance document not found");
+  return createRecord<GovernanceDocumentVersion>(COLLECTIONS.governanceDocumentVersions, { documentId, version: source.version || 1, snapshotTitle: source.title, snapshotContent: source.content || "", snapshotSections: source.sections || [], changeSummary, createdBy: actorId(), createdAt: serverTimestamp() } as WithFieldValue<Omit<GovernanceDocumentVersion, "id">>);
+}
+export const getGovernanceDocumentVersions = cache(async (documentId: string) => listCollection<GovernanceDocumentVersion>(COLLECTIONS.governanceDocumentVersions, [where("documentId", "==", documentId), orderBy("createdAt", "desc"), limit(100)]));
+export async function approveGovernanceDocument(id: string, activate = false) {
+  const source = await getRecord<GovernanceDocument>(COLLECTIONS.governanceDocuments, id);
+  if (!source) throw new Error("Governance document not found");
+  if (activate) {
+    const active = await getActiveGovernanceDocumentByType(source.documentType);
+    if (active && active.id !== id) await updateRecord(COLLECTIONS.governanceDocuments, active.id, { status: "superseded" });
+  }
+  await updateRecord(COLLECTIONS.governanceDocuments, id, { status: activate ? "active" : "approved", approvedBy: actorId(), approvedAt: serverTimestamp(), version: (source.version || 0) + 1 });
+  await createGovernanceDocumentVersion(id, activate ? "Approved and activated" : "Approved");
+  await logGovernanceEvent({ entityType: "governance_document", entityId: id, action: activate ? "activated" : "approved", actorUserId: actorId(), description: activate ? "Activated governance document" : "Approved governance document" });
+}
+export async function archiveGovernanceDocument(id: string) { await updateRecord(COLLECTIONS.governanceDocuments, id, { status: "archived", archivedAt: serverTimestamp(), updatedBy: actorId() }); await logGovernanceEvent({ entityType: "governance_document", entityId: id, action: "archived", actorUserId: actorId(), description: "Archived governance document" }); }
+
+export async function createGovernanceAmendment(data: Partial<GovernanceAmendment>) { const docRef = await createRecord<GovernanceAmendment>(COLLECTIONS.governanceAmendments, { documentId: data.documentId || "", documentTitle: data.documentTitle || "", proposedTitle: data.proposedTitle || "Untitled amendment", proposedBy: data.proposedBy || actorId(), amendmentType: data.amendmentType || "modification", affectedSectionIds: data.affectedSectionIds || [], currentText: data.currentText || "", proposedText: data.proposedText || "", rationale: data.rationale || "", expectedImpact: data.expectedImpact || "", status: data.status || "proposed", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<GovernanceAmendment, "id">>); await logGovernanceEvent({ entityType: "amendment", entityId: docRef.id, action: "amendment_proposed", actorUserId: actorId(), description: data.proposedTitle || "Amendment proposed" }); return docRef; }
+export async function updateGovernanceAmendment(id: string, data: Partial<GovernanceAmendment>) { return updateRecord(COLLECTIONS.governanceAmendments, id, data as Record<string, unknown>); }
+export const getGovernanceAmendments = cache(async () => listCollection<GovernanceAmendment>(COLLECTIONS.governanceAmendments, [orderBy("updatedAt", "desc"), limit(200)]));
+export const getAmendmentsForDocument = cache(async (documentId: string) => listCollection<GovernanceAmendment>(COLLECTIONS.governanceAmendments, [where("documentId", "==", documentId), limit(100)]));
+export async function approveGovernanceAmendment(id: string, decisionNotes = "") { await updateRecord(COLLECTIONS.governanceAmendments, id, { status: "approved", decisionNotes, approvedBy: actorId(), decidedAt: serverTimestamp() }); await logGovernanceEvent({ entityType: "amendment", entityId: id, action: "amendment_approved", actorUserId: actorId(), description: "Approved amendment" }); }
+export async function rejectGovernanceAmendment(id: string, decisionNotes = "") { await updateRecord(COLLECTIONS.governanceAmendments, id, { status: "rejected", decisionNotes, decidedAt: serverTimestamp() }); await logGovernanceEvent({ entityType: "amendment", entityId: id, action: "amendment_rejected", actorUserId: actorId(), description: "Rejected amendment" }); }
+export async function implementGovernanceAmendment(id: string) { const amendment = await getRecord<GovernanceAmendment>(COLLECTIONS.governanceAmendments, id); if (!amendment) throw new Error("Amendment not found"); const document = await getRecord<GovernanceDocument>(COLLECTIONS.governanceDocuments, amendment.documentId); if (!document) throw new Error("Document not found"); await updateRecord(COLLECTIONS.governanceDocuments, document.id, { content: amendment.proposedText || document.content || "", version: (document.version || 1) + 1, updatedBy: actorId() }); await updateRecord(COLLECTIONS.governanceAmendments, id, { status: "implemented", implementedAt: serverTimestamp() }); await createGovernanceDocumentVersion(document.id, `Implemented amendment: ${amendment.proposedTitle}`); await logGovernanceEvent({ entityType: "amendment", entityId: id, action: "amendment_implemented", actorUserId: actorId(), description: "Implemented amendment" }); }
+
+export async function createObjectiveTarget(data: Partial<ObjectiveTarget>) { return createRecord<ObjectiveTarget>(COLLECTIONS.objectiveTargets, { title: data.title || "Untitled objective target", periodType: data.periodType || "annual", periodLabel: data.periodLabel || "", objectiveSummary: data.objectiveSummary || "", strategicTheme: data.strategicTheme || "", status: data.status || "draft", ownerIds: data.ownerIds || [], workstreams: data.workstreams || [], kpis: data.kpis || [], kras: data.kras || [], progressPercent: data.progressPercent || 0, reviewNotes: data.reviewNotes || "", createdBy: data.createdBy || actorId(), updatedBy: data.updatedBy || actorId(), createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ObjectiveTarget, "id">>); }
+export async function updateObjectiveTarget(id: string, data: Partial<ObjectiveTarget>) { return updateRecord(COLLECTIONS.objectiveTargets, id, { ...data, updatedBy: actorId() }); }
+export const getObjectiveTargetById = cache(async (id: string) => getRecord<ObjectiveTarget>(COLLECTIONS.objectiveTargets, id));
+export const getObjectiveTargets = cache(async () => listCollection<ObjectiveTarget>(COLLECTIONS.objectiveTargets, [orderBy("updatedAt", "desc"), limit(200)]));
+export const getActiveObjectiveTargets = cache(async () => listCollection<ObjectiveTarget>(COLLECTIONS.objectiveTargets, [where("status", "==", "active"), limit(50)]));
+export async function approveObjectiveTarget(id: string) { const target = await getRecord<ObjectiveTarget>(COLLECTIONS.objectiveTargets, id); if (target) { const active = (await getActiveObjectiveTargets()).filter((item) => item.periodType === target.periodType && item.id !== id); await Promise.all(active.map((item) => updateRecord(COLLECTIONS.objectiveTargets, item.id, { status: "archived" }))); } return updateRecord(COLLECTIONS.objectiveTargets, id, { status: "active", approvedBy: actorId(), approvedAt: serverTimestamp() }); }
+export async function archiveObjectiveTarget(id: string) { return updateRecord(COLLECTIONS.objectiveTargets, id, { status: "archived" }); }
+export async function updateObjectiveProgress(id: string, progressPercent: number, reviewNotes?: string) { await updateRecord(COLLECTIONS.objectiveTargets, id, { progressPercent, reviewNotes, updatedBy: actorId() }); await logGovernanceEvent({ entityType: "objective_target", entityId: id, action: "objective_progress_updated", actorUserId: actorId(), description: `Progress updated to ${progressPercent}%` }); }
+export async function updateObjectiveKPIValue(id: string, kpiId: string, currentValue: string | number | boolean) { const target = await getRecord<ObjectiveTarget>(COLLECTIONS.objectiveTargets, id); if (!target) throw new Error("Objective target not found"); await updateRecord(COLLECTIONS.objectiveTargets, id, { kpis: (target.kpis || []).map((kpi) => kpi.id === kpiId ? { ...kpi, currentValue } : kpi), updatedBy: actorId() }); }
+export const getGovernanceAuditEvents = cache(async (entityId: string) => listCollection<GovernanceAuditEvent>(COLLECTIONS.governanceAuditEvents, [where("entityId", "==", entityId), orderBy("createdAt", "desc"), limit(100)]));
+
+export async function seedInitialGovernanceDocuments() {
+  const existing = await getGovernanceDocuments();
+  if (existing.some((doc) => doc.title === "NumSum Labs Constitution")) return { seeded: false, count: existing.length };
+  const sections = ["Preamble", "Name, Identity and Purpose", "Foundational Principles", "Organizational Structure", "Membership", "Equity, Ownership and Stewardship", "Target Management System", "Meeting System", "Decision Making", "Knowledge Management", "MSME Innovation Framework", "Conflict Resolution", "Intellectual Property", "Amendment Procedure", "Founding Declaration"].map((title, index) => ({ id: `section-${index + 1}`, title, order: index + 1, content: `${title} placeholder for NumSum Labs institutional governance.` }));
+  await createGovernanceDocument({ title: "NumSum Labs Constitution", documentType: "constitution", status: "active", version: 1, visibility: "admin_only", summary: "Foundational constitution placeholder for NumSum Labs.", content: sections.map((s) => `## ${s.title}\n${s.content}`).join("\n\n"), sections, tags: ["constitution", "foundational"] });
+  await createGovernanceDocument({ title: "Frozen Core Objective Target", documentType: "objective_target", status: "active", version: 1, visibility: "admin_only", summary: "Frozen first strategic objective for NumSum Labs.", content: "NumSum Labs’ first strategic objective is to become a trusted MSME industrial upgradation and problem-solving institution by systematically discovering real MSME challenges, converting them into structured problem statements, building a reusable knowledge base, developing SOPs and diagnostic frameworks, tracking global research and successful case studies, and delivering validated practical solutions through multidisciplinary engineering collaboration.", tags: ["objective", "frozen"] });
+  await createGovernanceDocument({ title: "Governance Manual", documentType: "governance_manual", status: "draft", version: 1, visibility: "admin_only", summary: "Governance operating manual placeholder." });
+  await createGovernanceDocument({ title: "Annual Objective 2026", documentType: "annual_objective", status: "draft", version: 1, visibility: "admin_only", summary: "Annual 2026 objective placeholder." });
+  await createObjectiveTarget({ title: "Annual Objective 2026", periodType: "annual", periodLabel: "2026", status: "active", strategicTheme: "MSME industrial upgradation", objectiveSummary: "NumSum Labs’ first strategic objective is to become a trusted MSME industrial upgradation and problem-solving institution by systematically discovering real MSME challenges, converting them into structured problem statements, building a reusable knowledge base, developing SOPs and diagnostic frameworks, tracking global research and successful case studies, and delivering validated practical solutions through multidisciplinary engineering collaboration.", workstreams: ["MSME Field Intelligence", "Problem Statement Lab", "SOP & Knowledge Base", "Research & Technology Watch", "Case Study & Success Story", "Solution & Pilot Team", "Governance & Documentation"].map((name, i) => ({ id: `workstream-${i+1}`, name, priority: "high", status: "active", ownerIds: [], targetOutputs: [], expectedEvidence: [] })), kpis: [{ id: "msmes", name: "Study MSMEs", metricType: "count", targetValue: 50, currentValue: 0, unit: "MSMEs", frequency: "annual", status: "active" }, { id: "problems", name: "Document problem statements", metricType: "count", targetValue: 150, currentValue: 0, unit: "problems", frequency: "annual", status: "active" }, { id: "sops", name: "Create SOPs/frameworks/checklists", metricType: "count", targetValue: 25, currentValue: 0, unit: "assets", frequency: "annual", status: "active" }, { id: "cases", name: "Publish MSME/startup case studies", metricType: "count", targetValue: 20, currentValue: 0, unit: "case studies", frequency: "annual", status: "active" }, { id: "research", name: "Track research/technology developments", metricType: "count", targetValue: 100, currentValue: 0, unit: "developments", frequency: "annual", status: "active" }, { id: "pilots", name: "Execute pilot improvement projects", metricType: "count", targetValue: 5, currentValue: 0, unit: "pilots", frequency: "annual", status: "active" }] });
+  return { seeded: true, count: 5 };
+}
+
+export async function getGovernanceMetrics() {
+  const [constitution, objectives, amendments, documents] = await Promise.all([getActiveGovernanceDocumentByType("constitution"), getActiveObjectiveTargets(), getGovernanceAmendments(), getGovernanceDocuments()]);
+  const now = new Date();
+  return { activeConstitutionVersion: constitution?.version || 0, activeObjectiveTarget: objectives[0]?.title || "None", pendingAmendments: amendments.filter((a) => ["proposed", "under_review"].includes(a.status)).length, activeMonthlyTargets: objectives.filter((o) => o.periodType === "monthly").length, kpiProgressCount: objectives.reduce((sum, o) => sum + (o.kpis || []).filter((k) => Number(k.currentValue || 0) > 0).length, 0), documentsUnderReview: documents.filter((d) => d.status === "under_review").length, documentsApprovedThisMonth: documents.filter((d) => { const v = d.approvedAt as any; const date = v?.toDate ? v.toDate() : v ? new Date(v) : null; return date && date.getUTCFullYear() === now.getUTCFullYear() && date.getUTCMonth() === now.getUTCMonth(); }).length };
 }
