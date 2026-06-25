@@ -204,3 +204,59 @@ Future admin enrichment attaches resources through both `linkedResources[]` and 
 - `discussionPostIds`
 
 This allows the detail page and future admin workspaces to show the complete operating context for a problem without exposing admin-only resources publicly.
+
+## Problem Workspace Foundation
+
+`problem_statements` is the central operating collection for MSME work. Workspace artifacts must include `problemStatementId` and should also be represented as a linked resource when practical.
+
+### linked_resources
+
+Reusable pointer records for problem workspace artifacts.
+
+- `id`
+- `problemStatementId`
+- `resourceType`: `onboarding_session`, `questionnaire_response`, `meeting_log`, `knowledge_asset`, `sop_document`, `research_item`, `pilot_track`, `file_link`, `competition`, `discussion`, `timeline_event`
+- `resourceId`
+- `title`
+- `description`
+- `visibility`: `admin_only`, `submitter_only`, `member_only`, `public`
+- `status`
+- `createdBy`
+- `createdAt`
+- `updatedAt`
+
+Existing arrays on `problem_statements` are still supported for compatibility: `onboardingSessionIds`, `questionnaireResponseIds`, `meetingLogIds`, `knowledgeAssetIds`, `sopIds`, `researchItemIds`, `pilotTrackIds`, `competitionIds`, and `discussionPostIds`.
+
+### timeline_events
+
+Chronological problem activity records.
+
+- `id`
+- `problemStatementId`
+- `eventType`
+- `title`
+- `description`
+- `actorUserId`
+- `actorName`
+- `visibility`
+- `metadata`
+- `createdAt`
+
+### file_links
+
+Lightweight workspace files and external references.
+
+- `id`
+- `problemStatementId`
+- `title`
+- `description`
+- `url`
+- `fileType`
+- `visibility`
+- `createdBy`
+- `createdAt`
+- `updatedAt`
+
+### Visibility rules
+
+Admins can read/write all workspace records. Submitters can read records linked to their own problem when the record visibility is `submitter_only`, `member_only`, or `public`. Members can read `member_only` and `public` records. Public users can read only `public` records. Internal admin notes must not be copied into public or submitter-visible fields.

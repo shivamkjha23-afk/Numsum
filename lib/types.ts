@@ -22,7 +22,7 @@ export type AssociatedType = "problem_statement" | "research" | "competition" | 
 export type DiscussionTargetType = AssociatedType | "general";
 export type DiscussionType = "general" | "problem" | "research" | "competition" | "knowledge" | "organization" | "msme" | "team";
 export type ResearchStatus = "draft" | "submitted" | "under_review" | "member_only" | "public" | "published" | "archived" | "rejected";
-export type LinkedResourceType = AssociatedType | "file" | "external_link" | "onboarding_session";
+export type LinkedResourceType = "onboarding_session" | "questionnaire_response" | "meeting_log" | "knowledge_asset" | "sop_document" | "research_item" | "pilot_track" | "file_link" | "competition" | "discussion" | "timeline_event" | "file" | "external_link" | "research" | "community";
 export type DocumentVersionStatus = "draft" | "under_review" | "published" | "archived";
 export type UserProfileType =| "msme_owner"| "msme_representative"| "industrialist" | "researcher" | "student" | "engineer_professional"| "consultant" | "startup_founder"| "academic_institution" | "academic_institution_representative" | "technology_provider"| "government_incubator_association"| "investor" | "other";
 
@@ -76,7 +76,10 @@ export interface UserProfile extends FirestoreEntity {
 }
 export interface OrganizationProfile extends FirestoreEntity { name: string; publicLabel?: string; industry?: string; description?: string; website?: string; logo?: string; verificationStatus?: "unverified" | "pending" | "verified" | "rejected"; city?: string; state?: string; country?: string; status?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface Organization extends OrganizationProfile {}
-export interface LinkedResource { id?: string; type: LinkedResourceType; collection?: string; resourceId: string; title?: string; visibility?: Visibility; status?: PlatformStatus; url?: string; linkedAt?: DateLike; linkedBy?: string; }
+export interface LinkedResource { id?: string; problemStatementId?: string; resourceType?: LinkedResourceType; type: LinkedResourceType; collection?: string; resourceId: string; title?: string; description?: string; visibility?: Visibility; status?: PlatformStatus; url?: string; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; linkedAt?: DateLike; linkedBy?: string; }
+export type TimelineEventType = "problem_submitted" | "problem_reviewed" | "status_changed" | "visibility_changed" | "onboarding_started" | "onboarding_completed" | "questionnaire_created" | "questionnaire_completed" | "meeting_logged" | "knowledge_added" | "sop_added" | "research_added" | "pilot_created" | "pilot_updated" | "pilot_completed" | "file_added" | "competition_linked" | "problem_published" | "problem_archived";
+export interface TimelineEvent extends FirestoreEntity { problemStatementId: string; eventType: TimelineEventType; title: string; description?: string; actorUserId?: string; actorName?: string; visibility?: Visibility; metadata?: Record<string, unknown>; createdAt?: DateLike; }
+export interface FileLink extends FirestoreEntity { problemStatementId: string; title: string; description?: string; url: string; fileType?: string; visibility?: Visibility; createdBy?: string; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface ProblemStatement extends FirestoreEntity {
   title: string;
   summary?: string;
