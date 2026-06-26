@@ -4,6 +4,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -156,10 +157,52 @@ export const COLLECTIONS = {
   competitionParticipations: "competition_participations",
   competitionEvaluations: "competition_evaluations",
   competitionResults: "competition_results",
+  problemAdminMetadata: "problem_admin_metadata",
+  onboardingAdminMetadata: "onboarding_admin_metadata",
+  pilotAdminMetadata: "pilot_admin_metadata",
+  competitionSubmissionAdminMetadata: "competition_submission_admin_metadata",
+  contributionReviewMetadata: "contribution_review_metadata",
   challenges: "problem_statements",
   challengeReviews: "problem_reviews",
 } as const;
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
+
+const SENSITIVE_FIELD_NAMES = ["adminNotes", "internalNotes", "adminInternalNotes", "reviewNotes", "notes"] as const;
+type SensitiveFieldName = (typeof SENSITIVE_FIELD_NAMES)[number];
+
+function splitSensitiveFields<T extends Record<string, unknown>>(data: T, fields: readonly SensitiveFieldName[] = SENSITIVE_FIELD_NAMES) {
+  const safe = { ...data } as Record<string, unknown>;
+  const metadata: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field in safe && safe[field] !== undefined) {
+      metadata[field] = safe[field];
+      delete safe[field];
+    }
+  }
+  return { safe: safe as T, metadata };
+}
+
+async function upsertAdminMetadata(collectionName: CollectionName, id: string, metadata: Record<string, unknown>, actorId?: string) {
+  if (Object.keys(metadata).length === 0) return;
+  await upsertRecord(collectionName, id, { ...metadata, sourceId: id, updatedBy: actorId || uid() || "system", updatedAt: serverTimestamp() });
+}
+
+function sensitiveFieldDeletes(fields: readonly SensitiveFieldName[] = SENSITIVE_FIELD_NAMES) {
+  return Object.fromEntries(fields.map((field) => [field, deleteField()])) as Record<string, unknown>;
+}
+
+function publicSafeProblem(problem: ProblemStatement): ProblemStatement {
+  const { safe } = splitSensitiveFields(problem as unknown as Record<string, unknown>, ["adminNotes"]);
+  return safe as unknown as ProblemStatement;
+}
+function publicSafePilot(pilot: PilotTrack): PilotTrack {
+  const { safe } = splitSensitiveFields(pilot as unknown as Record<string, unknown>, ["adminInternalNotes"]);
+  return safe as unknown as PilotTrack;
+}
+function publicSafeCompetitionSubmission(submission: CompetitionSubmission): CompetitionSubmission {
+  const { safe } = splitSensitiveFields(submission as unknown as Record<string, unknown>, ["adminNotes", "reviewNotes"]);
+  return safe as unknown as CompetitionSubmission;
+}
 
 function withId<T>(snapshot: { id: string; data: () => DocumentData }): T {
   return { id: snapshot.id, ...snapshot.data() } as T;
@@ -492,7 +535,7 @@ export const getProblemStatements = cache(
         ? [...publicConstraints(true), limit(maxItems)]
         : [orderBy("createdAt", "desc"), limit(maxItems)],
     );
-    return publicOnly ? byCreatedAtDesc(rows) : rows;
+    return publicOnly ? byCreatedAtDesc(rows).map(publicSafeProblem) : rows;
   },
 );
 export const getChallenges = getProblemStatements;
@@ -723,6 +766,7 @@ export const getCompetitions = cache(async (publicOnly = true) => {
 export const getCompetitionBySlug = cache(async (slug: string) => (await listCollection<Competition>(COLLECTIONS.competitions, [where("slug", "==", slug), limit(1)]))[0] || null);
 export const getAdminCompetitions = cache(async () => getCompetitions(false));
 export const getPublicCompetitions = cache(async () => (await listCollection<Competition>(COLLECTIONS.competitions, [where("visibility", "==", "public"), limit(100)])).filter((c) => ["published", "upcoming", "open", "closed", "results_declared"].includes(c.status || "")));
+export const getPublicCompetitionsSafe = getPublicCompetitions;
 export const getMemberCompetitions = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [limit(100)]));
 export async function publishCompetition(competition: Competition, userId: string) { await updateCompetitionStatus(competition, userId, "open", "public"); const problemId = competition.linkedProblemStatementId || competition.sourceProblemId; if (problemId) await createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, { problemStatementId: problemId, eventType: "competition_published" as never, title: `Competition published: ${competition.title}`, actorUserId: userId, visibility: "member_only", createdAt: serverTimestamp() } as never); }
 export async function archiveCompetition(competition: Competition, userId: string) { await updateRecord(COLLECTIONS.competitions, competition.id, { status: "archived", archivedAt: serverTimestamp(), updatedBy: userId, updatedAt: serverTimestamp() }); }
@@ -940,6 +984,7 @@ export const getGeneralResearchItems = cache(async () => listCollection<Research
 export const getMyResearchItems = cache(async (userId: string) => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("createdBy", "==", userId), limit(100)]));
 export const getAdminResearchItems = cache(async () => listCollection<ResearchItem>(COLLECTIONS.researchPosts, [orderBy("createdAt", "desc"), limit(300)]));
 export const getPublicResearchItems = cache(async () => (await listCollection<ResearchItem>(COLLECTIONS.researchPosts, [where("visibility", "==", "public"), limit(200)])).filter((r) => ["approved", "published", "public"].includes(r.status || "")));
+export const getPublicResearchItemsSafe = getPublicResearchItems;
 export async function updateResearchItemStatus(id: string, status: ResearchItem["status"], actorId = "") {
   const existing = await getRecord<ResearchItem>(COLLECTIONS.researchPosts, id);
   const patch: Partial<ResearchItem> = { status, reviewedBy: actorId, reviewedAt: serverTimestamp() as never };
@@ -1641,14 +1686,8 @@ export async function scoreCompetitionSubmission(
   reviewNotes?: string,
   winner = false,
 ) {
-  await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, {
-    score,
-    rank,
-    reviewNotes,
-    winner,
-    evaluatedBy: reviewerId,
-    evaluatedAt: serverTimestamp(),
-  });
+  await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { winner, updatedAt: serverTimestamp() });
+  await upsertAdminMetadata(COLLECTIONS.competitionSubmissionAdminMetadata, submission.id, { score, rank, reviewNotes, evaluatedBy: reviewerId, evaluatedAt: serverTimestamp() }, reviewerId);
   if (winner)
     await updateRecord(COLLECTIONS.competitions, submission.competitionId, {
       winnerSubmissionId: submission.id,
@@ -1676,12 +1715,12 @@ export async function rejectCompetitionTeam(teamId: string, adminId: string, adm
 export const addTeamMember = joinCompetitionTeam;
 export const removeTeamMember = leaveCompetitionTeam;
 export async function withdrawTeam(teamId: string) { return updateRecord(COLLECTIONS.competitionTeams, teamId, { status: "withdrawn", updatedAt: serverTimestamp() }); }
-export async function updateCompetitionSubmission(id: string, data: Partial<CompetitionSubmission>) { return updateRecord(COLLECTIONS.competitionSubmissions, id, { ...data, updatedAt: serverTimestamp() }); }
-export async function createCompetitionSubmission(data: Omit<CompetitionSubmission, "id" | "updatedAt">) { return createRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, { ...data, status: data.status || "draft", visibility: data.visibility || "team_only", updatedAt: serverTimestamp() } as never); }
+export async function updateCompetitionSubmission(id: string, data: Partial<CompetitionSubmission>) { const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["adminNotes", "reviewNotes"]); await updateRecord(COLLECTIONS.competitionSubmissions, id, { ...safe, ...sensitiveFieldDeletes(["adminNotes", "reviewNotes"]), updatedAt: serverTimestamp() }); await upsertAdminMetadata(COLLECTIONS.competitionSubmissionAdminMetadata, id, metadata); }
+export async function createCompetitionSubmission(data: Omit<CompetitionSubmission, "id" | "updatedAt">) { const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["adminNotes", "reviewNotes"]); const created = await createRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, { ...safe, status: data.status || "draft", visibility: data.visibility || "team_only", updatedAt: serverTimestamp() } as never); await upsertAdminMetadata(COLLECTIONS.competitionSubmissionAdminMetadata, created.id, metadata, data.submittedByUserId); return created; }
 export async function submitCompetitionSubmission(submission: CompetitionSubmission) { const updated = await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { status: "submitted", submittedAt: serverTimestamp(), updatedAt: serverTimestamp() }); await updateDoc(doc(db, COLLECTIONS.competitions, submission.competitionId), { submissions: arrayUnion(submission.id), updatedAt: serverTimestamp() }); return updated; }
 export const getCompetitionSubmissionById = cache(async (id: string) => getRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, id));
 export const getSubmissionsForCompetition = cache(async (competitionId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("competitionId", "==", competitionId), limit(100)]));
-export const getMyCompetitionSubmissions = cache(async (userId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("submittedByUserId", "==", userId), limit(100)]));
+export const getMyCompetitionSubmissions = cache(async (userId: string) => (await listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("submittedByUserId", "==", userId), limit(100)])).map(publicSafeCompetitionSubmission));
 export async function updateSubmissionStatus(submission: CompetitionSubmission, status: CompetitionSubmission["status"], reviewerId?: string) { const out = await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { status, reviewedBy: reviewerId, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() }); if (["selected", "winner"].includes(status || "")) await logAudit({ actorId: reviewerId || "system", action: `competition_submission_${status}`, collectionName: COLLECTIONS.competitionSubmissions, documentId: submission.id }); return out; }
 export const shortlistSubmission = (s: CompetitionSubmission, id?: string) => updateSubmissionStatus(s, "shortlisted", id);
 export const selectSubmission = (s: CompetitionSubmission, id?: string) => updateSubmissionStatus(s, "selected", id);
@@ -1729,6 +1768,7 @@ export async function updateKnowledgeAsset(id: string, patch: Partial<KnowledgeA
 export const getKnowledgeAssetsForProblem = cache(async (problemStatementId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("problemStatementId", "==", problemStatementId), limit(50)]));
 export const getMyKnowledgeAssets = cache(async (userId: string) => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("createdBy", "==", userId), limit(100)]));
 export const getPublicKnowledgeAssets = cache(async () => (await listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [where("visibility", "==", "public"), limit(100)])).filter((a) => ["approved", "published"].includes(a.status || "")));
+export const getPublicKnowledgeAssetsSafe = getPublicKnowledgeAssets;
 export const getAdminKnowledgeAssets = cache(async () => listCollection<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, [orderBy("createdAt", "desc"), limit(200)]));
 export async function updateKnowledgeAssetStatus(id: string, status: KnowledgeAsset["status"], actorId = "") {
   const existing = await getRecord<KnowledgeAsset>(COLLECTIONS.knowledgeAssets, id);
@@ -1787,13 +1827,17 @@ async function createProblemTimelineEvent(problemStatementId: string, eventType:
 }
 export async function createProblemOnboardingSession(data: Omit<ProblemOnboardingSession, "id" | "createdAt" | "updatedAt">) {
   const actorId = data.adminOwnerId || data.createdBy || data.facilitatorId || "";
-  const created = await createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...data, status: data.status || "scheduled", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+  const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["internalNotes"]);
+  const created = await createRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, { ...safe, status: data.status || "scheduled", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<ProblemOnboardingSession, "id">>);
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, created.id, metadata, actorId);
   await linkCreatedResource(data.problemStatementId, { type: "onboarding_session", resourceType: "onboarding_session", collection: COLLECTIONS.problemOnboardingSessions, resourceId: created.id, title: data.sessionTitle || "Onboarding session", visibility: data.visibility || "admin_only", status: (data.status || "scheduled") as PlatformStatus }, actorId);
   await createProblemTimelineEvent(data.problemStatementId, data.status === "completed" ? "onboarding_completed" : "onboarding_started", data.sessionTitle || "Onboarding session created", actorId, { resourceId: created.id }, data.visibility || "admin_only");
   return created;
 }
 export async function updateProblemOnboardingSession(id: string, patch: Partial<ProblemOnboardingSession>) {
-  await updateRecord(COLLECTIONS.problemOnboardingSessions, id, { ...patch, updatedAt: serverTimestamp() });
+  const { safe, metadata } = splitSensitiveFields(patch as Record<string, unknown>, ["internalNotes"]);
+  await updateRecord(COLLECTIONS.problemOnboardingSessions, id, { ...safe, ...sensitiveFieldDeletes(["internalNotes"]), updatedAt: serverTimestamp() });
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, id, metadata);
 }
 export async function completeProblemOnboardingSession(id: string, actorId: string, problemStatus?: ProblemStatement["status"]) {
   const session = await getRecord<ProblemOnboardingSession>(COLLECTIONS.problemOnboardingSessions, id);
@@ -1807,14 +1851,18 @@ export async function getOnboardingSessionsForProblem(problemStatementId: string
 export async function createQuestionnaireResponse(data: Omit<QuestionnaireResponse, "id" | "createdAt" | "updatedAt">) {
   const actorId = data.submittedByAdminId || data.createdBy || data.respondentId || "";
   const responses = data.responses || data.answers || {};
-  const created = await createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...data, responses, answers: data.answers || responses, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+  const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["internalNotes"]);
+  const created = await createRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, { ...safe, responses, answers: data.answers || responses, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireResponse, "id">>);
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, created.id, metadata, actorId);
   await linkCreatedResource(data.problemStatementId, { type: "questionnaire_response", resourceType: "questionnaire_response", collection: COLLECTIONS.questionnaireResponses, resourceId: created.id, title: data.templateTitle || "Questionnaire response", visibility: data.visibility || "admin_only", status: (data.status || "draft") as PlatformStatus }, actorId);
   await createProblemTimelineEvent(data.problemStatementId, data.status === "completed" ? "questionnaire_completed" : "questionnaire_created", data.templateTitle || "Questionnaire response created", actorId, { resourceId: created.id }, data.visibility || "admin_only");
   if (data.sessionId) await updateProblemOnboardingSession(data.sessionId, { linkedQuestionnaireResponseIds: arrayUnion(created.id) as never });
   return created;
 }
 export async function updateQuestionnaireResponse(id: string, patch: Partial<QuestionnaireResponse>) {
-  await updateRecord(COLLECTIONS.questionnaireResponses, id, { ...patch, answers: patch.answers || patch.responses, responses: patch.responses || patch.answers, updatedAt: serverTimestamp() });
+  const { safe, metadata } = splitSensitiveFields(patch as Record<string, unknown>, ["internalNotes"]);
+  await updateRecord(COLLECTIONS.questionnaireResponses, id, { ...safe, ...sensitiveFieldDeletes(["internalNotes"]), answers: patch.answers || patch.responses, responses: patch.responses || patch.answers, updatedAt: serverTimestamp() });
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, id, metadata);
 }
 export async function completeQuestionnaireResponse(id: string, answers: Record<string, unknown>, actorId: string) {
   const response = await getRecord<QuestionnaireResponse>(COLLECTIONS.questionnaireResponses, id);
@@ -1844,20 +1892,25 @@ export async function createNewSOPVersion(id: string, actorId = "") { const exis
 
 export async function createPilotTrack(data: Omit<PilotTrack, "id" | "createdAt" | "updatedAt">) {
   if (!data.problemStatementId) throw new Error("Pilot tracks must be linked to a problem statement.");
-  const created = await createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...data, status: data.status || "proposed", visibility: data.visibility || "admin_only", priority: data.priority || "medium", riskLevel: data.riskLevel || "unknown", implementationDifficulty: data.implementationDifficulty || "unknown", teamMemberIds: data.teamMemberIds || [], evidenceLinks: data.evidenceLinks || [], attachmentLinks: data.attachmentLinks || [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+  const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["adminInternalNotes"]);
+  const created = await createRecord<PilotTrack>(COLLECTIONS.pilotTracks, { ...safe, status: data.status || "proposed", visibility: data.visibility || "admin_only", priority: data.priority || "medium", riskLevel: data.riskLevel || "unknown", implementationDifficulty: data.implementationDifficulty || "unknown", teamMemberIds: data.teamMemberIds || [], evidenceLinks: data.evidenceLinks || [], attachmentLinks: data.attachmentLinks || [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<PilotTrack, "id">>);
+  await upsertAdminMetadata(COLLECTIONS.pilotAdminMetadata, created.id, metadata, data.createdBy);
   await linkCreatedResource(data.problemStatementId, { type: "pilot_track", resourceType: "pilot_track", collection: COLLECTIONS.pilotTracks, resourceId: created.id, title: data.title, description: data.pilotObjective || data.problemSummary || data.summary, url: data.driveLink, visibility: data.visibility || "admin_only", status: (data.status || "proposed") as PlatformStatus }, data.createdBy || "");
   await createProblemTimelineEvent(data.problemStatementId, "pilot_created", data.title || "Pilot created", data.createdBy || "", { resourceId: created.id, status: data.status || "proposed" }, data.visibility || "admin_only");
   return created;
 }
 export async function updatePilotTrack(id: string, patch: Partial<PilotTrack>, actorId = "") {
   const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
-  await updateRecord(COLLECTIONS.pilotTracks, id, { ...patch, updatedAt: serverTimestamp() });
+  const { safe, metadata } = splitSensitiveFields(patch as Record<string, unknown>, ["adminInternalNotes"]);
+  await updateRecord(COLLECTIONS.pilotTracks, id, { ...safe, ...sensitiveFieldDeletes(["adminInternalNotes"]), updatedAt: serverTimestamp() });
+  await upsertAdminMetadata(COLLECTIONS.pilotAdminMetadata, id, metadata, actorId);
   if (existing?.problemStatementId) await createProblemTimelineEvent(existing.problemStatementId, "pilot_updated", patch.title || existing.title || "Pilot updated", actorId, { resourceId: id }, patch.visibility || existing.visibility || "admin_only");
 }
 export const getPilotTrackById = cache(async (id: string) => getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id));
 export const getPilotTracksForProblem = cache(async (problemStatementId: string) => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]));
 export const getAdminPilotTracks = cache(async () => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [orderBy("createdAt", "desc"), limit(200)]));
-export const getPublicPilotTracks = cache(async () => (await listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("visibility", "==", "public"), limit(100)])).filter((p) => ["completed", "scaled"].includes(p.status || "") || !!p.publishedAt));
+export const getPublicPilotTracks = cache(async () => (await listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("visibility", "==", "public"), limit(100)])).filter((p) => ["completed", "scaled"].includes(p.status || "") || !!p.publishedAt).map(publicSafePilot));
+export const getPublicPilotsSafe = getPublicPilotTracks;
 export async function updatePilotStatus(id: string, status: PilotTrack["status"], actorId = "") {
   const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
   const patch: Partial<PilotTrack> = { status };
@@ -1890,13 +1943,17 @@ export async function updatePilotMetric(id: string, patch: Partial<PilotMetric>)
 export const getPilotMetricsForPilot = cache(async (pilotTrackId: string) => listCollection<PilotMetric>(COLLECTIONS.pilotMetrics, [where("pilotTrackId", "==", pilotTrackId), limit(100)]));
 export async function convertPilotToSuccessStory(pilotId: string, actorId = "") { const pilot = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, pilotId); if (!pilot || !pilot.problemStatementId) throw new Error("Completed linked pilot required."); if (!["completed", "scaled"].includes(pilot.status || "")) throw new Error("Only completed pilots can become success stories."); const created = await createSuccessStory({ problemStatementId: pilot.problemStatementId, pilotTrackId: pilot.id, title: pilot.title, organizationName: pilot.visibility === "public" ? pilot.partnerOrganization : undefined, industrySegment: pilot.industrySegment, challengeSummary: pilot.problemSummary, interventionSummary: pilot.proposedSolution, measurableImpact: pilot.finalResults || pilot.expectedImpact || String(pilot.estimatedSavings || ""), publicSummary: pilot.publicSummary || pilot.submitterVisibleSummary || pilot.finalResults || "", visibility: "admin_only", status: "draft", createdBy: actorId, summary: pilot.publicSummary || pilot.finalResults || pilot.title }); await createProblemTimelineEvent(pilot.problemStatementId, "success_story_created", `Success story drafted: ${pilot.title}`, actorId, { resourceId: created.id, pilotTrackId: pilot.id }, "admin_only"); return created; }
 export async function createMeetingLog(data: Omit<MeetingLog, "id" | "createdAt" | "updatedAt">) {
-  const created = await createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...data, title: data.title || data.meetingTitle || "Meeting log", occurredAt: data.occurredAt || data.meetingDate, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+  const { safe, metadata } = splitSensitiveFields(data as Record<string, unknown>, ["internalNotes"]);
+  const created = await createRecord<MeetingLog>(COLLECTIONS.meetingLogs, { ...safe, title: data.title || data.meetingTitle || "Meeting log", occurredAt: data.occurredAt || data.meetingDate, status: data.status || "completed", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MeetingLog, "id">>);
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, created.id, metadata, data.createdBy);
   await linkCreatedResource(data.problemStatementId, { type: "meeting_log", resourceType: "meeting_log", collection: COLLECTIONS.meetingLogs, resourceId: created.id, title: data.meetingTitle || data.title || "Meeting log", visibility: data.visibility || "admin_only", status: data.status || "completed" }, data.createdBy || "");
   await createProblemTimelineEvent(data.problemStatementId, "meeting_logged", data.meetingTitle || data.title || "Meeting logged", data.createdBy || "", { resourceId: created.id }, data.visibility || "admin_only");
   return created;
 }
 export async function updateMeetingLog(id: string, patch: Partial<MeetingLog>) {
-  await updateRecord(COLLECTIONS.meetingLogs, id, { ...patch, updatedAt: serverTimestamp() });
+  const { safe, metadata } = splitSensitiveFields(patch as Record<string, unknown>, ["internalNotes"]);
+  await updateRecord(COLLECTIONS.meetingLogs, id, { ...safe, ...sensitiveFieldDeletes(["internalNotes"]), updatedAt: serverTimestamp() });
+  await upsertAdminMetadata(COLLECTIONS.onboardingAdminMetadata, id, metadata);
 }
 export async function getMeetingLogsForProblem(problemStatementId: string) {
   return listCollection<MeetingLog>(COLLECTIONS.meetingLogs, [where("problemStatementId", "==", problemStatementId), limit(50)]);
@@ -2085,10 +2142,13 @@ export const getMyProblemStatements = cache(async (userId: string) =>
   ),
 );
 export const getPublicProblemStatements = getProblemStatements;
+export const getPublicProblemsSafe = getPublicProblemStatements;
 export const getAdminProblemStatements = getAllProblemStatements;
 export async function updateProblemStatement(id: string, patch: Partial<ProblemStatement>, actorId?: string) {
   const before = await getProblemStatementById(id).catch(() => null);
-  await updateRecord(COLLECTIONS.problemStatements, id, patch as Record<string, unknown>);
+  const { safe, metadata } = splitSensitiveFields(patch as Record<string, unknown>, ["adminNotes"]);
+  await updateRecord(COLLECTIONS.problemStatements, id, { ...safe, ...sensitiveFieldDeletes(["adminNotes"]) });
+  await upsertAdminMetadata(COLLECTIONS.problemAdminMetadata, id, metadata, actorId);
   if (actorId) await logAudit({ actorId, action: "problem_updated", collectionName: COLLECTIONS.problemStatements, documentId: id, after: patch });
   if (actorId && before && patch.status && patch.status !== before.status) await createProblemTimelineEvent(id, patch.status === "published" ? "problem_published" : patch.status === "archived" ? "problem_archived" : "status_changed", `Status changed to ${patch.status}`, actorId, { from: before.status, to: patch.status }, patch.visibility || before.visibility || "submitter_only");
   if (actorId && before && patch.visibility && patch.visibility !== before.visibility) await createProblemTimelineEvent(id, "visibility_changed", `Visibility changed to ${patch.visibility}`, actorId, { from: before.visibility, to: patch.visibility }, patch.visibility);

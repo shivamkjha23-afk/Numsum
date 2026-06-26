@@ -32,6 +32,7 @@ service cloud.firestore {
     function ownsIncoming() { return signedIn() && (request.resource.data.createdBy == request.auth.uid || request.resource.data.submittedBy == request.auth.uid || request.resource.data.submittedByUserId == request.auth.uid || request.resource.data.submitterId == request.auth.uid || request.resource.data.author == request.auth.uid || request.resource.data.userId == request.auth.uid || request.resource.data.leader == request.auth.uid || hasIncomingList('members') || hasIncomingList('ownerIds')); }
     function problemSubmitterCreate() { return signedIn() && request.resource.data.submittedByUserId == request.auth.uid && request.resource.data.createdBy == request.auth.uid && request.resource.data.status == 'submitted' && request.resource.data.visibility == 'submitter_only'; }
     function submitterEditableStatus() { return resource.data.status in ['submitted', 'needs_more_info']; }
+    function hasSensitiveAdminFields() { return request.resource.data.keys().hasAny(['adminNotes','internalNotes','adminInternalNotes','reviewNotes','reviewerNotes','decisionNotes','privateFeedback','adminOnlySummary','reviewerComments']); }
     function submitterProblemPatchOnly() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['title', 'shortDescription', 'detailedDescription', 'summary', 'description', 'problemDescription', 'subCategory', 'affectedProcess', 'problemFrequency', 'urgency', 'estimatedImpact', 'currentWorkaround', 'expectedOutcome', 'availableData', 'attachmentsOrDriveLinks', 'attachments', 'tags', 'contactConsent', 'updatedAt']); }
     function linkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(resource.data.problemStatementId)); }
     function incomingLinkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(request.resource.data.problemStatementId)); }
@@ -72,7 +73,7 @@ service cloud.firestore {
         || (resource.data.visibility == 'public' && resource.data.status == 'published')
         || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['approved','published','active'])
         || submitterVisible();
-      allow create: if platformAdmin() || problemSubmitterCreate();
+      allow create: if (platformAdmin() && !hasSensitiveAdminFields()) || problemSubmitterCreate();
       allow update: if platformAdmin()
         || (submitterVisible()
           && submitterEditableStatus()
@@ -82,7 +83,8 @@ service cloud.firestore {
           && request.resource.data.assignedAdminId == resource.data.assignedAdminId);
       allow delete: if platformAdmin();
     }
-    match /challenges/{document=**} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
+    // Legacy /challenges documents are not used for new reads; ProblemStatement remains canonical.
+    match /challenges/{document=**} { allow read, write: if platformAdmin(); }
     match /problem_reviews/{id} { allow read: if platformAdmin() || submitterVisible(); allow create, update, delete: if platformAdmin(); }
 
     match /research_posts/{id} {
@@ -95,17 +97,17 @@ service cloud.firestore {
       allow delete: if platformAdmin();
     }
     match /knowledge_assets/{id} { allow read: if canReadVisible() || linkedWorkspaceVisible(); allow create: if platformAdmin() || (signedIn() && ownsIncoming() && request.resource.data.problemStatementId is string && request.resource.data.status == 'under_review' && request.resource.data.visibility == 'admin_only'); allow update: if platformAdmin() || (ownsExisting() && request.resource.data.status == resource.data.status && request.resource.data.visibility == resource.data.visibility && !(request.resource.data.status in ['approved','published']) && request.resource.data.visibility != 'public'); allow delete: if platformAdmin(); }
-    match /sop_documents/{id} { allow read: if canReadVisible() || linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string; }
-    match /pilot_tracks/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status in ['completed','scaled']) || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['active','completed','scaled']) || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only','member_only','public']); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !(request.resource.data.keys().hasAny(['adminInternalNotes']) && !platformAdmin()); }
-    match /pilot_milestones/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string; }
-    match /pilot_updates/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string; }
-    match /pilot_metrics/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string; }
-    match /meeting_logs/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
+    match /sop_documents/{id} { allow read: if canReadVisible() || linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !hasSensitiveAdminFields(); }
+    match /pilot_tracks/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status in ['completed','scaled']) || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['active','completed','scaled']) || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only','member_only','public']); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !hasSensitiveAdminFields(); }
+    match /pilot_milestones/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !hasSensitiveAdminFields(); }
+    match /pilot_updates/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !hasSensitiveAdminFields(); }
+    match /pilot_metrics/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if platformAdmin() && request.resource.data.problemStatementId is string && !hasSensitiveAdminFields(); }
+    match /meeting_logs/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin() && !hasSensitiveAdminFields(); }
     match /linked_resources/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
     match /timeline_events/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
     match /file_links/{id} { allow read: if linkedWorkspaceVisible(); allow create, update, delete: if safeWorkspaceCreate(); }
-    match /problem_onboarding_sessions/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
-    match /questionnaire_responses/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin(); }
+    match /problem_onboarding_sessions/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin() && !hasSensitiveAdminFields(); }
+    match /questionnaire_responses/{id} { allow read: if linkedOnboardingVisible(); allow write: if platformAdmin() && !hasSensitiveAdminFields(); }
     match /success_stories/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status == 'published'); allow create, update, delete: if platformAdmin(); }
     match /testimonial_ratings/{id} { allow read: if canReadVisible(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
 
@@ -118,7 +120,7 @@ service cloud.firestore {
     match /competitions/{id} { allow read: if platformAdmin() || isPublicDoc() || memberVisible(); allow create, update, delete: if platformAdmin(); }
     match /competition_teams/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
     match /competition_participations/{id} { allow read: if platformAdmin() || ownsExisting() || (signedIn() && resource.data.participantUserId == request.auth.uid); allow create: if signedIn() && request.resource.data.participantUserId == request.auth.uid; allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin(); }
-    match /competition_submissions/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || (ownsExisting() && resource.data.status == 'draft'); allow delete: if platformAdmin(); }
+    match /competition_submissions/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming() && !hasSensitiveAdminFields(); allow update: if (platformAdmin() && !hasSensitiveAdminFields()) || (ownsExisting() && resource.data.status == 'draft' && !hasSensitiveAdminFields()); allow delete: if platformAdmin(); }
     match /competition_evaluations/{id} { allow read, write: if platformAdmin(); }
     match /competition_results/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status == 'published') || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['declared','published']); allow write: if platformAdmin(); }
 
@@ -132,6 +134,11 @@ service cloud.firestore {
     match /governance_amendments/{id} { allow read, write: if platformAdmin(); }
     match /objective_targets/{id} { allow read, write: if platformAdmin(); }
     match /governance_audit_events/{id} { allow read, write: if platformAdmin(); }
+    match /problem_admin_metadata/{id} { allow read, write: if platformAdmin(); }
+    match /onboarding_admin_metadata/{id} { allow read, write: if platformAdmin(); }
+    match /pilot_admin_metadata/{id} { allow read, write: if platformAdmin(); }
+    match /competition_submission_admin_metadata/{id} { allow read, write: if platformAdmin(); }
+    match /contribution_review_metadata/{id} { allow read, write: if platformAdmin(); }
 
     function assignedExisting() { return signedIn() && (hasExistingList('ownerIds') || hasExistingList('reviewerIds') || hasExistingList('attendees')); }
     function assignedIncoming() { return signedIn() && (hasIncomingList('ownerIds') || hasIncomingList('reviewerIds') || hasIncomingList('attendees')); }

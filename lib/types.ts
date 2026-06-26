@@ -44,6 +44,13 @@ export type DocumentVersionStatus = "draft" | "under_review" | "published" | "ar
 export type UserProfileType =| "msme_owner"| "msme_representative"| "industrialist" | "researcher" | "student" | "engineer_professional"| "consultant" | "startup_founder"| "academic_institution" | "academic_institution_representative" | "technology_provider"| "government_incubator_association"| "investor" | "other";
 
 export interface FirestoreEntity { id: string; }
+
+export interface AdminMetadataRecord extends FirestoreEntity { sourceId: string; adminNotes?: string; internalNotes?: string; adminInternalNotes?: string; reviewNotes?: string; notes?: string; updatedBy?: string; updatedAt?: DateLike; }
+export type ProblemAdminMetadata = AdminMetadataRecord;
+export type OnboardingAdminMetadata = AdminMetadataRecord;
+export type PilotAdminMetadata = AdminMetadataRecord;
+export type CompetitionSubmissionAdminMetadata = AdminMetadataRecord;
+export type ContributionReviewMetadata = AdminMetadataRecord;
 export interface TeamMember extends FirestoreEntity { name: string; institution?: string; degree?: string; discipline?: string; designation?: string; bio?: string; photoUrl?: string; linkedinUrl?: string; displayOrder?: number; createdAt?: DateLike; updatedAt?: DateLike; }
 export interface UserProfile extends FirestoreEntity {
   uid?: string;
