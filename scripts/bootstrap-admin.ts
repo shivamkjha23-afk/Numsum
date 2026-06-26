@@ -22,19 +22,22 @@ async function main() {
   if (!["admin", "super_admin", "member"].includes(role)) throw new Error("--role must be admin, super_admin, or member.");
 
   const admin = (await (Function("moduleName", "return import(moduleName)"))("firebase-admin")) as any;
-  if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.applicationDefault() });
+  if (!admin.apps.length) {
+    admin.initializeApp(process.env.GOOGLE_APPLICATION_CREDENTIALS ? { credential: admin.credential.applicationDefault() } : undefined);
+  }
 
   const user = uidArg ? await admin.auth().getUser(uidArg) : await admin.auth().getUserByEmail(email!);
   await admin.firestore().collection("users").doc(user.uid).set({
     uid: user.uid,
     email: user.email || email || null,
     role,
+    status: "active",
     profileComplete: true,
     adminBootstrappedAt: admin.firestore.FieldValue.serverTimestamp(),
     adminBootstrappedBy: "scripts/bootstrap-admin.ts",
   }, { merge: true });
 
-  console.log(`Updated users/${user.uid} with role=${role}. No secrets were printed.`);
+  console.log(`Updated users/${user.uid} (${user.email || email || "no-email"}) with role=${role}, status=active, profileComplete=true. No secrets were printed.`);
 }
 
 main().catch((error) => {

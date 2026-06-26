@@ -14,12 +14,12 @@
 - Public static route and navigation review: **Pass**.
 - Member dashboard static review and build verification: **Pass**.
 - Admin dashboard static review and build verification: **Pass**.
-- Persona-specific privacy checks: **Needs Manual Seeded Data**.
+- Current launch privacy checks: **Needs Manual Smoke Test** for founder admin, public visitor, and a real non-admin/member flow. Full multi-persona QA is recommended later before broader public onboarding.
 
 ## Mobile QA status
 
 - Static responsive review: **Pass** for dashboard card grids, wrapping text, and existing table scroll containers.
-- Visual mobile/tablet/desktop browser QA with realistic seeded content: **Needs Manual Seeded Data**.
+- Visual mobile/tablet/desktop browser QA with real or clearly marked draft content: **Needs Manual Smoke Test**.
 
 ## Routes checked
 
@@ -27,7 +27,7 @@ Primary checked routes: `/`, `/about`, `/submit-problem`, `/problem-statements`,
 
 ## Remaining blockers before deployment readiness
 
-1. Seeded browser QA for all personas and visibility states.
+1. Founder-admin bootstrap verification plus public visitor and real non-admin/member smoke tests.
 2. Production Firebase configuration review.
 3. Firestore index capture/deploy after realistic seeded data is exercised.
 4. CI verification in the target environment.
@@ -35,10 +35,14 @@ Primary checked routes: `/`, `/about`, `/submit-problem`, `/problem-statements`,
 
 ## Recommended next step
 
-Create a controlled seeded QA dataset and run the persona checklist in `docs/qa-checklist.md` in a browser against the intended staging Firebase project.
+Bootstrap the founder as admin/super-admin, run the minimal admin route checklist in `docs/admin-setup.md`, and smoke test public plus real non-admin/member access before creating starter content manually.
 
 ## Prompt 9A production readiness additions
 
 - Environment setup, Firebase production setup, Firestore indexes, admin bootstrap, baseline seed plan, CI/CD, Vercel deployment, and launch checklist are documented.
 - Production secrets remain external to the repository.
 - Baseline seed data is limited to operational placeholders and explicitly excludes fake impact stories or fake MSME claims.
+
+## Updated current launch QA path
+
+The launch path no longer requires multiple seeded test users or fake personas. Required now: founder admin verification, public visitor smoke testing, founder/member flow smoke testing, and privacy checks that prove public and logged-in non-admin users cannot access admin routes or admin-only metadata. Full multi-persona QA should still happen later before broader public onboarding.
