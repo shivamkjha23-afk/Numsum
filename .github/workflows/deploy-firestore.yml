@@ -2,6 +2,23 @@ name: Deploy Firestore
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: Firestore resources to deploy
+        required: true
+        default: rules,indexes
+        type: choice
+        options:
+          - rules,indexes
+          - rules
+          - indexes
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - firebase.json
+      - .github/workflows/deploy-firestore.yml
 
 jobs:
   deploy-firestore:
@@ -9,8 +26,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FIREBASE_PROJECT_ID: "${{ vars.FIREBASE_PROJECT_ID }}"
-      FIREBASE_SERVICE_ACCOUNT_JSON: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}"
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      DEPLOY_TARGET: ${{ github.event.inputs.deploy_target || 'rules,indexes' }}
 
     steps:
       - name: Checkout repository
@@ -32,9 +50,35 @@ jobs:
           PROJECT_ID="$(printf '%s' "$FIREBASE_PROJECT_ID" | tr -d '\r\n' | xargs)"
           SERVICE_ACCOUNT_FILE="${RUNNER_TEMP}/firebase-service-account.json"
 
+          if [ -z "$PROJECT_ID" ]; then
+            echo "FIREBASE_PROJECT_ID repository variable is required." >&2
+            exit 1
+          fi
+
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON repository secret is required." >&2
+            exit 1
+          fi
+
+          trap 'rm -f "$SERVICE_ACCOUNT_FILE"' EXIT
+
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$SERVICE_ACCOUNT_FILE"
           export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_FILE"
 
-          npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$PROJECT_ID" --non-interactive
+          case "$DEPLOY_TARGET" in
+            rules,indexes)
+              FIREBASE_ONLY="firestore:rules,firestore:indexes"
+              ;;
+            rules)
+              FIREBASE_ONLY="firestore:rules"
+              ;;
+            indexes)
+              FIREBASE_ONLY="firestore:indexes"
+              ;;
+            *)
+              echo "Unsupported deploy target: $DEPLOY_TARGET" >&2
+              exit 1
+              ;;
+          esac
 
-          rm -f "$SERVICE_ACCOUNT_FILE"
+          npx firebase-tools deploy --only "$FIREBASE_ONLY" --project "$PROJECT_ID" --non-interactive
