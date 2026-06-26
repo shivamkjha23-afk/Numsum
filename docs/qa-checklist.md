@@ -40,3 +40,11 @@
 - **Pass:** Static rule review found no broad public reads for governance, execution reviews, competition evaluations, contribution review cycles, or companion metadata collections.
 - **Pass:** Build/typecheck/lint status is recorded in this PR summary.
 - **Needs manual verification:** Persona route smoke tests require Firebase Auth/Firestore seeded accounts and should follow `docs/firestore-rules-test-plan.md`.
+
+
+## Prompt 8B-2 migration and rules QA
+
+- Historical sensitive-field migration is partially resolved: `scripts/migrate-sensitive-fields.ts` supports dry-run and apply modes.
+- Production Firestore migration must be dry-run reviewed before apply.
+- A Firestore backup/export should be taken before apply.
+- Firestore emulator rules tests are located at `tests/firestore-rules/firestore-rules.test.ts` and should be run with `npm run test:rules`.

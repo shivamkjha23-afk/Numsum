@@ -31,3 +31,8 @@ Roles: public visitor, logged-in incomplete profile, completed member, submitter
 | Competition evaluations | Denied | Denied | Denied | Denied | Read/write |
 | Governance | Denied | Denied | Denied | Denied unless admin | Read/write |
 | Execution work/action/meeting | Denied | Denied unless assigned | Denied unless assigned | Read/limited update when assigned | Read/write |
+
+
+## Historical sensitive-field migration status
+
+Prompt 8B-2 adds a controlled migration path for historical sensitive fields. Companion metadata remains admin-only. Production data is only partially resolved until operators review `npm run migrate:sensitive-fields:dry-run`, take a backup/export, and run `npm run migrate:sensitive-fields:apply` against the intended Firebase project.
