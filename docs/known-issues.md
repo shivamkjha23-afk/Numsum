@@ -20,7 +20,7 @@ No unresolved critical deployment blockers are known after the final soft-launch
 
 | Issue / future module | Notes |
 |---|---|
-| Community/Discussions | Code exists but remains hidden from primary navigation; do not expose until intentionally rebuilt and privacy-reviewed. |
+| Community/Discussions | Public-safe route is active; richer personalized aggregation and deep problem/team embeds are future enhancements. |
 | Organizations | Public organization directory remains hidden/future. |
 | Notifications | Member utility remains hidden/future. |
 | Public team directory | Keep hidden until a public-safe data model is reviewed. |
@@ -44,3 +44,7 @@ No unresolved critical deployment blockers are known after the final soft-launch
 ## User lifecycle and role assignment update
 
 See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.
+
+## Step 7B Community Known Issues
+- Real-time chat, notifications, file uploads, rich mentions, email digests, organization forums, and reputation systems are not implemented.
+- The member dashboard currently provides the safe entry point and empty state; richer personalized thread aggregation can be expanded after production indexes are confirmed.

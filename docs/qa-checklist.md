@@ -7,7 +7,7 @@ Status markers: **Pass**, **Fail**, **Needs Manual Smoke Test**, **Blocked by En
 | Check | Status | Evidence / notes |
 |---|---|---|
 | Public homepage keeps primary CTA as Submit MSME Challenge. | Pass | Static route/navigation review; primary public nav and footer point to `/submit-problem`. |
-| Public navigation excludes Community, Organizations, Team Directory, Notifications, broad team pages, demo routes, and `/admin?tab=` links. | Pass | `lib/navigation.ts` contains only public product routes plus admin-only nav. |
+| Public navigation includes Community and excludes Organizations, Team Directory, Notifications, broad team pages, demo routes, and `/admin?tab=` links. | Pass | `lib/navigation.ts` contains only public product routes plus admin-only nav. |
 | Footer excludes admin/member-only links. | Pass | Footer lists only public-safe pages and Submit MSME Challenge. |
 | Public routes `/`, `/about`, `/submit-problem`, `/problem-statements`, `/knowledge`, `/sops`, `/research`, `/competitions`, `/pilots`, `/msme-intelligence` remain public-positioned. | Pass | Static route sweep; hidden/future modules are not linked from primary nav/footer. |
 | Admin dashboard cards link to route-based admin pages instead of old `/admin?tab=...` links. | Pass | Static sweep found no `/admin?tab=` links in app/components/lib/docs except checklist history text. |
@@ -91,3 +91,12 @@ Status markers: **Pass**, **Fail**, **Needs Manual Smoke Test**, **Blocked by En
 ## User lifecycle and role assignment update
 
 See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.
+
+## Step 7B Community / Discussions QA
+- Public can open `/community`, sees only public/open threads, cannot comment without login, and cannot access `/admin/community`.
+- Incomplete users are redirected to `/profile/complete` before creating or commenting.
+- Completed members can create allowed member discussions and comment on readable open threads.
+- Private problem discussions are limited to submitter/assigned/admin users.
+- Private team discussions are limited to team members/admin users.
+- Admin can access moderation, view reports, and hide/lock/archive/review content.
+- Firestore denies public reads of reports, moderation actions, private discussions, and user lists.
