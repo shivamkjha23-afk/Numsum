@@ -9,7 +9,9 @@
     "migrate:sensitive-fields:dry-run": "tsx scripts/migrate-sensitive-fields.ts --dry-run",
     "migrate:sensitive-fields:apply": "tsx scripts/migrate-sensitive-fields.ts --apply",
     "test:rules": "firebase emulators:exec --only firestore \"tsx tests/firestore-rules/firestore-rules.test.ts\"",
-    "test:rules:watch": "tsx tests/firestore-rules/firestore-rules.test.ts"
+    "test:rules:watch": "tsx tests/firestore-rules/firestore-rules.test.ts",
+    "dev:reset-firestore:dry-run": "tsx scripts/dev-reset-firestore.ts --dry-run",
+    "dev:reset-firestore:apply": "tsx scripts/dev-reset-firestore.ts --apply --confirm-dev-reset"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.0",
