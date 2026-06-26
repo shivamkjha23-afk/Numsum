@@ -3,15 +3,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
-    function userRole() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? userDoc().data.role : null; }
+    function userRole() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? (userDoc().data.role == null ? 'member' : userDoc().data.role) : 'visitor'; }
     function isProfileCompleteUser() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && userDoc().data.profileComplete == true; }
-    function isMember() { return signedIn() && userRole() in ['member', 'reviewer', 'moderator', 'organization', 'pending_admin', 'admin', 'super_admin']; }
+    function isMember() { return signedIn() && userRole() in ['member','submitter','contributor','researcher','msme_representative','internal_member','reviewer','moderator','organization','pending_admin','admin','super_admin']; }
     function isAdmin() { return userRole() in ['admin', 'super_admin']; }
+    function safeUserRole(role) { return role in ['member','submitter','contributor','researcher','msme_representative','internal_member','reviewer','moderator','organization','pending_admin','admin','super_admin']; }
+    function elevatedUserRole(role) { return role in ['submitter','contributor','researcher','msme_representative','internal_member']; }
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
     function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName','name','fullName','email','phoneNumber','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
-    function adminRolePatchAllowed(uid) { return platformAdmin() && uid != request.auth.uid && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['role']) || request.resource.data.role in ['member','reviewer','moderator','organization','pending_admin','admin'] || isSuperAdmin()); }
+    function adminRolePatchAllowed(uid) { return platformAdmin() && uid != request.auth.uid && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['role']) || request.resource.data.role in ['member','submitter','contributor','researcher','msme_representative','internal_member','reviewer','moderator','organization','pending_admin','admin'] || isSuperAdmin()); }
     // Public reads require explicit public visibility and a safe externally publishable status.
     function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
     function incomingPublicDoc() { return request.resource.data.visibility == 'public' && request.resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
@@ -27,7 +29,7 @@ service cloud.firestore {
         && uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid
         && (
-          request.resource.data.role in ['member', 'pending_admin']
+          request.resource.data.role == 'member'
           || (isBootstrapAdminEmail() && request.resource.data.role in ['admin', 'super_admin'])
         );
     }
@@ -78,7 +80,8 @@ service cloud.firestore {
     }
 
     match /admin_inbox/{id} { allow read, update, delete: if platformAdmin(); allow create: if signedIn(); }
-    match /user_role_requests/{id} { allow read, update, delete: if platformAdmin(); allow create: if platformAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.requestedRole == 'member' && request.resource.data.currentRole == 'member' && request.resource.data.status == 'pending_review'); }
+    match /user_role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
+    match /role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
 
     match /admin_applications/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin(); }
 
@@ -143,7 +146,7 @@ service cloud.firestore {
     match /moderation_actions/{id} { allow read, write: if platformAdmin(); }
 
     match /community_posts/{id} { allow read: if canReadVisible(); allow create: if platformAdmin() || (isProfileCompleteUser() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
-    match /comments/{id} { allow read: if signedIn(); allow create: if isProfileCompleteUser() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
+    match /comments/{id} { allow read: if true; allow create: if isProfileCompleteUser() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
     match /replies/{id} { allow read: if signedIn(); allow create: if isProfileCompleteUser() && ownsIncoming(); allow update, delete: if platformAdmin() || ownsExisting(); }
     match /community_analytics/{id} { allow read: if platformAdmin(); allow create, update: if signedIn(); allow delete: if platformAdmin(); }
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }

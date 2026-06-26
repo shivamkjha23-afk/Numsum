@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type Role = "visitor" | "member" | "reviewer" | "moderator" | "organization" | "pending_admin" | "admin" | "super_admin";
+export type Role = "visitor" | "member" | "submitter" | "contributor" | "researcher" | "msme_representative" | "internal_member" | "reviewer" | "moderator" | "organization" | "pending_admin" | "admin" | "super_admin";
 export type PlatformStatus = "draft" | "submitted" | "under_review" | "needs_information" | "needs_more_info" | "onboarded" | "structured" | "active" | "completed" | "published" | "archived" | "rejected" | "member_only" | "public" | "researching" | "competition" | "solved" | "scheduled" | "in_progress" | "cancelled" | "needs_follow_up";
 export type ContentStatus = PlatformStatus;
 export type ProblemStatementStatus = ContentStatus;

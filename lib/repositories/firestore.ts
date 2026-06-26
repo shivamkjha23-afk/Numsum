@@ -434,7 +434,7 @@ export async function ensureUserProfile(
       role: profile.role,
     });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
-    if (!isBootstrapAdmin) await createNewUserRoleReview(user.uid, profile);
+    // Basic member access is automatic; elevated access uses role request workflow.
     await bumpStats("memberCount");
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
@@ -2634,6 +2634,21 @@ export async function getContributionMetrics(userId?: string) { const [records, 
 
 
 export const getUserRoleRequests = cache(async () => listCollection<any>(COLLECTIONS.userRoleRequests, [limit(500)]));
+export const getMyUserRoleRequests = cache(async (userId: string) => listCollection<any>(COLLECTIONS.userRoleRequests, [where("userId", "==", userId), limit(50)]));
+export async function createUserRoleRequest(user: UserProfile, requestedRole: Role, reason: string) {
+  const safeElevated: Role[] = ["submitter", "contributor", "researcher", "msme_representative", "internal_member"];
+  if (!user.uid) throw new Error("Sign in required.");
+  if (!safeElevated.includes(requestedRole)) throw new Error("This role requires admin assignment.");
+  return createRecord<any>(COLLECTIONS.userRoleRequests, { userId: user.uid, email: user.email || "", displayName: user.displayName || user.name || "", currentRole: user.role || "member", requestedRole, reason, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as any);
+}
+export async function reviewUserRoleRequest(requestId: string, decision: "approved" | "rejected", actor: UserProfile) {
+  if (actor.role !== "admin" && actor.role !== "super_admin") throw new Error("Admin access required.");
+  const request = await getRecord<any>(COLLECTIONS.userRoleRequests, requestId);
+  if (!request) throw new Error("Role request not found.");
+  if (decision === "approved") await updateUserRoleAndStatus(request.userId, { role: request.requestedRole }, actor);
+  await updateRecord(COLLECTIONS.userRoleRequests, requestId, { status: decision, reviewedBy: actor.uid, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+
 export const getUsersForRoleManagement = cache(async () => listCollection<UserProfile>(COLLECTIONS.users, [limit(500)]));
 
 export async function updateUserRoleAndStatus(targetUserId: string, patch: { role?: Role; status?: string }, actor: UserProfile) {

@@ -48,3 +48,11 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 ## Step 7B Community Known Issues
 - Real-time chat, notifications, file uploads, rich mentions, email digests, organization forums, and reputation systems are not implemented.
 - The member dashboard currently provides the safe entry point and empty state; richer personalized thread aggregation can be expanded after production indexes are confirmed.
+
+## Resolved on 2026-06-26
+- First-login profile creation no longer depends on a role request for basic member access.
+- `/community` participation CTAs now wait for auth/profile loading and use `users/{uid}.profileComplete`.
+- `/competitions` public page uses public-safe competition records only and should not touch private submissions/evaluations/admin metadata.
+- Pending role requests are documented and implemented as workflow records, not permission grants.
+- Admin navigation is grouped to avoid a long flat dropdown that can cover the hero.
+- Home hero title/typewriter phrases have been restored.
