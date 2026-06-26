@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AdminPanel } from "@/components/admin-panel";
 import { AuthGate } from "@/components/auth-gate";
 import { ErrorState, LoadingState } from "@/components/data-states";
+import { Button, Card } from "@/components/ui";
 import {
   getAdminApplications,
   getAdminInbox,
@@ -133,10 +134,35 @@ function AdminDataLoader() {
   if (!data) return <LoadingState label="Loading admin data" />;
   return <AdminPanel {...data} />;
 }
+const moduleCards = [
+  ["Problems", "/admin/problems", "Review submissions and workspace activity."],
+  ["Onboarding", "/admin/questionnaires", "Manage templates and follow-up data."],
+  ["Knowledge/SOP", "/admin/knowledge", "Review knowledge assets and SOP library."],
+  ["Research", "/admin/research", "Curate research and technology watch."],
+  ["Pilots/Impact", "/admin/pilots", "Track pilots and public success stories."],
+  ["Competitions", "/admin/competitions", "Manage challenge teams, submissions and results."],
+  ["Governance/Objectives", "/admin/governance", "Admin-only governance and targets."],
+  ["Execution", "/admin/execution", "Coordinate internal work items."],
+  ["Contributions", "/admin/contributions", "Review contribution records and scoring."],
+] as const;
+
 export function AdminDashboardClient() {
   return (
     <AuthGate label="Admin access requires authentication." adminOnly>
-      <AdminDataLoader />
+      <main className="min-h-screen bg-navy px-6 py-10">
+        <h1 className="font-display text-5xl">Admin Dashboard</h1>
+        <p className="mt-3 text-white/60">Module-level controls load only after admin authentication is confirmed.</p>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {moduleCards.map(([title, href, description]) => (
+            <Card key={href}>
+              <h2 className="font-display text-2xl text-white">{title}</h2>
+              <p className="mt-2 min-h-10 text-sm text-white/60">{description}</p>
+              <div className="mt-4"><Button href={href}>Open</Button></div>
+            </Card>
+          ))}
+        </div>
+        <div className="mt-8"><AdminDataLoader /></div>
+      </main>
     </AuthGate>
   );
 }
