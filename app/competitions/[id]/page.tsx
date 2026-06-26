@@ -6,6 +6,7 @@ import { Card } from "@/components/ui";
 import {
   getCommunityPostsByAssociation,
   getCompetitionById,
+  getCompetitionBySlug,
   getCompetitionSubmissions,
   getCompetitionTeams,
 } from "@/lib/repositories/firestore";
@@ -17,7 +18,7 @@ export default async function CompetitionDetail({
 }) {
   const { id } = await params;
   const [competition, teams, submissions, discussions] = await Promise.all([
-    getCompetitionById(id),
+    getCompetitionById(id).then((c) => c || getCompetitionBySlug(id)),
     getCompetitionTeams(id),
     getCompetitionSubmissions(id),
     getCommunityPostsByAssociation("competition", id),
@@ -44,7 +45,8 @@ export default async function CompetitionDetail({
             competition.theme,
             competition.status,
             competition.visibility,
-            competition.sourceType,
+            competition.industrySegment,
+            competition.competitionType,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -60,15 +62,33 @@ export default async function CompetitionDetail({
         />
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           <Card>
+            <h2 className="font-display text-2xl">Eligibility</h2>
+            <p className="mt-3 whitespace-pre-wrap text-white/70">
+              {competition.eligibility || "Eligibility details pending."}
+            </p>
+          </Card>
+          <Card>
             <h2 className="font-display text-2xl">Rules</h2>
             <p className="mt-3 whitespace-pre-wrap text-white/70">
               {competition.rules || "Rules pending."}
             </p>
           </Card>
           <Card>
+            <h2 className="font-display text-2xl">Expected outputs</h2>
+            <p className="mt-3 whitespace-pre-wrap text-white/70">
+              {competition.expectedOutputs || "Expected outputs pending."}
+            </p>
+          </Card>
+          <Card>
+            <h2 className="font-display text-2xl">Evaluation criteria</h2>
+            <p className="mt-3 whitespace-pre-wrap text-white/70">
+              {competition.evaluationCriteria || "Evaluation criteria pending."}
+            </p>
+          </Card>
+          <Card>
             <h2 className="font-display text-2xl">Prizes</h2>
             <p className="mt-3 whitespace-pre-wrap text-white/70">
-              {competition.prizes || "Prizes pending."}
+              {competition.prizesOrRecognition || competition.prizes || competition.prize || "Recognition pending."}
             </p>
           </Card>
           <Card>
@@ -78,14 +98,8 @@ export default async function CompetitionDetail({
             </p>
           </Card>
           <Card>
-            <h2 className="font-display text-2xl">Teams</h2>
-            {teams.length ? (
-              <pre className="mt-3 overflow-auto text-xs text-white/70">
-                {JSON.stringify(teams, null, 2)}
-              </pre>
-            ) : (
-              <p className="mt-3 text-white/60">No teams yet.</p>
-            )}
+            <h2 className="font-display text-2xl">Participation</h2>
+            <p className="mt-3 text-white/60">Login/register to participate, create or join a team, and submit a solution while the competition is open.</p>
           </Card>
           <Card>
             <h2 className="font-display text-2xl">Leaderboard</h2>

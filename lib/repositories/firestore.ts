@@ -45,6 +45,9 @@ import type {
   Competition,
   CompetitionSubmission,
   CompetitionTeam,
+  CompetitionParticipation,
+  CompetitionEvaluation,
+  CompetitionResult,
   ConstitutionDocument,
   ObjectiveTargetDocument,
   DiscussionComment,
@@ -150,6 +153,9 @@ export const COLLECTIONS = {
   communityAnalytics: "community_analytics",
   competitionTeams: "competition_teams",
   competitionSubmissions: "competition_submissions",
+  competitionParticipations: "competition_participations",
+  competitionEvaluations: "competition_evaluations",
+  competitionResults: "competition_results",
   challenges: "problem_statements",
   challengeReviews: "problem_reviews",
 } as const;
@@ -713,6 +719,16 @@ export const getCompetitions = cache(async (publicOnly = true) => {
   );
   return publicOnly ? byCreatedAtDesc(rows) : rows;
 });
+
+export const getCompetitionBySlug = cache(async (slug: string) => (await listCollection<Competition>(COLLECTIONS.competitions, [where("slug", "==", slug), limit(1)]))[0] || null);
+export const getAdminCompetitions = cache(async () => getCompetitions(false));
+export const getPublicCompetitions = cache(async () => (await listCollection<Competition>(COLLECTIONS.competitions, [where("visibility", "==", "public"), limit(100)])).filter((c) => ["published", "upcoming", "open", "closed", "results_declared"].includes(c.status || "")));
+export const getMemberCompetitions = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [limit(100)]));
+export async function publishCompetition(competition: Competition, userId: string) { await updateCompetitionStatus(competition, userId, "open", "public"); const problemId = competition.linkedProblemStatementId || competition.sourceProblemId; if (problemId) await createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, { problemStatementId: problemId, eventType: "competition_published" as never, title: `Competition published: ${competition.title}`, actorUserId: userId, visibility: "member_only", createdAt: serverTimestamp() } as never); }
+export async function archiveCompetition(competition: Competition, userId: string) { await updateRecord(COLLECTIONS.competitions, competition.id, { status: "archived", archivedAt: serverTimestamp(), updatedBy: userId, updatedAt: serverTimestamp() }); }
+export async function linkCompetitionToProblem(competitionId: string, problemStatementId: string, userId: string) { const comp = await getRecord<Competition>(COLLECTIONS.competitions, competitionId); await updateRecord(COLLECTIONS.competitions, competitionId, { linkedProblemStatementId: problemStatementId, sourceProblemId: problemStatementId, sourceType: "problem_statement", sourceId: problemStatementId, updatedBy: userId, updatedAt: serverTimestamp() }); await updateDoc(doc(db, COLLECTIONS.problemStatements, problemStatementId), { competitionIds: arrayUnion(competitionId), linkedResources: arrayUnion({ type: "competition", resourceType: "competition", resourceId: competitionId, title: comp?.title || competitionId, collection: COLLECTIONS.competitions, linkedAt: new Date().toISOString(), linkedBy: userId }), updatedAt: serverTimestamp() }); await createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, { problemStatementId, eventType: "competition_linked", title: `Competition linked: ${comp?.title || competitionId}`, actorUserId: userId, visibility: "member_only", createdAt: serverTimestamp() } as never); }
+export async function unlinkCompetitionFromProblem(competitionId: string, problemStatementId: string, userId: string) { await updateRecord(COLLECTIONS.competitions, competitionId, { linkedProblemStatementId: null, sourceProblemId: null, updatedBy: userId, updatedAt: serverTimestamp() } as never); await updateDoc(doc(db, COLLECTIONS.problemStatements, problemStatementId), { competitionIds: arrayRemove(competitionId), updatedAt: serverTimestamp() }); }
+
 export const getInternalThreads = cache(async () =>
   listCollection<InternalThread>(COLLECTIONS.internalThreads, [
     orderBy("createdAt", "desc"),
@@ -1365,17 +1381,7 @@ export async function addChallengeReview(
   return review;
 }
 export async function createCompetition(
-  data: Omit<
-    Competition,
-    | "id"
-    | "createdAt"
-    | "updatedAt"
-    | "status"
-    | "visibility"
-    | "registrations"
-    | "teams"
-    | "submissions"
-  >,
+  data: Omit<Competition, "id" | "createdAt" | "updatedAt" | "registrations" | "teams" | "submissions">,
 ) {
   const payload = {
     ...data,
@@ -1391,8 +1397,14 @@ export async function createCompetition(
       data.sourceResearchId ||
       data.sourceProblemId ||
       "general",
-    status: "draft",
-    visibility: "private",
+    slug: data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    shortDescription: data.shortDescription || data.description?.slice(0, 180) || "",
+    detailedDescription: data.detailedDescription || data.description || "",
+    linkedProblemStatementId: data.linkedProblemStatementId || data.sourceProblemId,
+    competitionType: data.competitionType || "problem_challenge",
+    participationMode: data.participationMode || "both",
+    status: data.status || "draft",
+    visibility: data.visibility || "admin_only",
     registrations: [],
     teams: [],
     submissions: [],
@@ -1536,6 +1548,14 @@ export async function registerForCompetition(
     documentId: competition.id,
   });
 }
+
+export async function registerForCompetitionParticipation(data: Omit<CompetitionParticipation, "id" | "createdAt" | "updatedAt">) { return createRecord<CompetitionParticipation>(COLLECTIONS.competitionParticipations, { ...data, status: data.status || "registered", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); }
+export const getMyCompetitionParticipations = cache(async (userId: string) => listCollection<CompetitionParticipation>(COLLECTIONS.competitionParticipations, [where("participantUserId", "==", userId), limit(100)]));
+export const getCompetitionParticipants = cache(async (competitionId: string) => listCollection<CompetitionParticipation>(COLLECTIONS.competitionParticipations, [where("competitionId", "==", competitionId), limit(200)]));
+export async function approveParticipation(id: string) { return updateRecord(COLLECTIONS.competitionParticipations, id, { status: "approved", approvedAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
+export async function rejectParticipation(id: string) { return updateRecord(COLLECTIONS.competitionParticipations, id, { status: "rejected", updatedAt: serverTimestamp() }); }
+export async function withdrawParticipation(id: string) { return updateRecord(COLLECTIONS.competitionParticipations, id, { status: "withdrawn", updatedAt: serverTimestamp() }); }
+
 export async function createCompetitionTeam(
   data: Omit<CompetitionTeam, "id" | "createdAt" | "updatedAt">,
 ) {
@@ -1598,7 +1618,7 @@ export async function submitCompetitionSolution(
     description: "Competition submission received",
     sourceCollection: COLLECTIONS.competitionSubmissions,
     sourceId: created.id,
-    createdBy: data.submittedBy,
+    createdBy: data.submittedBy || data.submittedByUserId || "unknown",
   });
   await notifyAdmins(
     "competition_submission",
@@ -1606,7 +1626,7 @@ export async function submitCompetitionSolution(
     data.title,
   );
   await createNotification({
-    userId: data.submittedBy,
+    userId: data.submittedBy || data.submittedByUserId || "unknown",
     type: "competition_submission",
     title: "Submission received",
     message: data.title,
@@ -1645,6 +1665,39 @@ export async function scoreCompetitionSubmission(
     after: { score, rank, winner },
   });
 }
+
+export async function updateCompetitionTeam(teamId: string, data: Partial<CompetitionTeam>) { return updateRecord(COLLECTIONS.competitionTeams, teamId, { ...data, updatedAt: serverTimestamp() }); }
+export const getCompetitionTeamById = cache(async (id: string) => getRecord<CompetitionTeam>(COLLECTIONS.competitionTeams, id));
+export const getTeamsForCompetition = cache(async (competitionId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("competitionId", "==", competitionId), limit(100)]));
+export const getMyCompetitionTeams = cache(async (userId: string) => listCollection<CompetitionTeam>(COLLECTIONS.competitionTeams, [where("members", "array-contains", userId), limit(100)]));
+export async function requestToJoinTeam(team: CompetitionTeam, userId: string) { return updateRecord(COLLECTIONS.competitionTeams, team.id, { requestedMemberIds: arrayUnion(userId), updatedAt: serverTimestamp() } as never); }
+export async function approveCompetitionTeam(teamId: string, adminId: string) { return updateRecord(COLLECTIONS.competitionTeams, teamId, { status: "active", approvedAt: serverTimestamp(), updatedAt: serverTimestamp(), adminNotes: `Approved by ${adminId}` }); }
+export async function rejectCompetitionTeam(teamId: string, adminId: string, adminNotes?: string) { return updateRecord(COLLECTIONS.competitionTeams, teamId, { status: "rejected", adminNotes: adminNotes || `Rejected by ${adminId}`, updatedAt: serverTimestamp() }); }
+export const addTeamMember = joinCompetitionTeam;
+export const removeTeamMember = leaveCompetitionTeam;
+export async function withdrawTeam(teamId: string) { return updateRecord(COLLECTIONS.competitionTeams, teamId, { status: "withdrawn", updatedAt: serverTimestamp() }); }
+export async function updateCompetitionSubmission(id: string, data: Partial<CompetitionSubmission>) { return updateRecord(COLLECTIONS.competitionSubmissions, id, { ...data, updatedAt: serverTimestamp() }); }
+export async function createCompetitionSubmission(data: Omit<CompetitionSubmission, "id" | "updatedAt">) { return createRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, { ...data, status: data.status || "draft", visibility: data.visibility || "team_only", updatedAt: serverTimestamp() } as never); }
+export async function submitCompetitionSubmission(submission: CompetitionSubmission) { const updated = await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { status: "submitted", submittedAt: serverTimestamp(), updatedAt: serverTimestamp() }); await updateDoc(doc(db, COLLECTIONS.competitions, submission.competitionId), { submissions: arrayUnion(submission.id), updatedAt: serverTimestamp() }); return updated; }
+export const getCompetitionSubmissionById = cache(async (id: string) => getRecord<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, id));
+export const getSubmissionsForCompetition = cache(async (competitionId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("competitionId", "==", competitionId), limit(100)]));
+export const getMyCompetitionSubmissions = cache(async (userId: string) => listCollection<CompetitionSubmission>(COLLECTIONS.competitionSubmissions, [where("submittedByUserId", "==", userId), limit(100)]));
+export async function updateSubmissionStatus(submission: CompetitionSubmission, status: CompetitionSubmission["status"], reviewerId?: string) { const out = await updateRecord(COLLECTIONS.competitionSubmissions, submission.id, { status, reviewedBy: reviewerId, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() }); if (["selected", "winner"].includes(status || "")) await logAudit({ actorId: reviewerId || "system", action: `competition_submission_${status}`, collectionName: COLLECTIONS.competitionSubmissions, documentId: submission.id }); return out; }
+export const shortlistSubmission = (s: CompetitionSubmission, id?: string) => updateSubmissionStatus(s, "shortlisted", id);
+export const selectSubmission = (s: CompetitionSubmission, id?: string) => updateSubmissionStatus(s, "selected", id);
+export const markWinnerSubmission = (s: CompetitionSubmission, id?: string) => updateSubmissionStatus(s, "winner", id);
+export async function createCompetitionEvaluation(data: Omit<CompetitionEvaluation, "id" | "createdAt" | "updatedAt">) { return createRecord<CompetitionEvaluation>(COLLECTIONS.competitionEvaluations, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); }
+export async function updateCompetitionEvaluation(id: string, data: Partial<CompetitionEvaluation>) { return updateRecord(COLLECTIONS.competitionEvaluations, id, { ...data, updatedAt: serverTimestamp() }); }
+export const getEvaluationsForSubmission = cache(async (submissionId: string) => listCollection<CompetitionEvaluation>(COLLECTIONS.competitionEvaluations, [where("submissionId", "==", submissionId), limit(100)]));
+export const getEvaluationsForCompetition = cache(async (competitionId: string) => listCollection<CompetitionEvaluation>(COLLECTIONS.competitionEvaluations, [where("competitionId", "==", competitionId), limit(200)]));
+export async function createCompetitionResult(data: Omit<CompetitionResult, "id" | "createdAt" | "updatedAt">) { return createRecord<CompetitionResult>(COLLECTIONS.competitionResults, { ...data, status: data.status || "draft", visibility: data.visibility || "member_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); }
+export async function updateCompetitionResult(id: string, data: Partial<CompetitionResult>) { return updateRecord(COLLECTIONS.competitionResults, id, { ...data, updatedAt: serverTimestamp() }); }
+export async function declareCompetitionResult(result: CompetitionResult, adminId: string) { await updateRecord(COLLECTIONS.competitionResults, result.id, { status: "declared", declaredBy: adminId, declaredAt: serverTimestamp(), updatedAt: serverTimestamp() }); await updateRecord(COLLECTIONS.competitions, result.competitionId, { status: "results_declared", updatedAt: serverTimestamp() }); }
+export async function publishCompetitionResult(result: CompetitionResult) { return updateRecord(COLLECTIONS.competitionResults, result.id, { status: "published", visibility: "public", publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
+export const getResultForCompetition = cache(async (competitionId: string) => (await listCollection<CompetitionResult>(COLLECTIONS.competitionResults, [where("competitionId", "==", competitionId), limit(1)]))[0] || null);
+export const getPublicCompetitionResults = cache(async () => listCollection<CompetitionResult>(COLLECTIONS.competitionResults, [where("visibility", "==", "public"), where("status", "==", "published"), limit(100)]));
+export async function updateCompetition(id: string, data: Partial<Competition>) { return updateRecord(COLLECTIONS.competitions, id, { ...data, updatedAt: serverTimestamp() }); }
+
 export async function createKnowledgeAsset(data: Omit<KnowledgeAsset, "id" | "createdAt" | "updatedAt">) {
   if (!data.problemStatementId && !data.linkedProblemStatementId) throw new Error("Knowledge assets must be linked to a problem statement.");
   const problemStatementId = data.problemStatementId || data.linkedProblemStatementId || "";
