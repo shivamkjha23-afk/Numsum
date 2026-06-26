@@ -1,42 +1,57 @@
 # Firestore Rules Test Plan
 
-No emulator test suite exists in this repository yet. Use this manual matrix until Firebase emulator tests are added.
+Automated emulator tests now live in `tests/firestore-rules/firestore-rules.test.ts`.
 
-## Public visitor
+## How to run
 
-- Can read public published `problem_statements` only.
-- Can read public approved/published `knowledge_assets`, `research_posts`, public completed/scaled `pilot_tracks`, public safe competitions, public published success stories, public career openings, and public MSME cases.
-- Cannot read `problem_admin_metadata`, `onboarding_admin_metadata`, `pilot_admin_metadata`, `competition_submission_admin_metadata`, governance collections, execution collections, competition evaluations, contribution records, or admin inbox.
+Install dependencies, ensure Java is available for Firebase Emulator Suite, then run:
 
-## Member
+```bash
+npm run test:rules
+```
 
-- Can read member-visible content only when visibility/status is allowed.
-- Cannot read another member's submitter-only problem, team-only competition team/submission, private contribution record, governance document, or execution item unless assigned.
+The script uses `firebase emulators:exec --only firestore` and loads `firestore.rules` directly.
 
-## Submitter
+## Required setup
 
-- Can read their own submitted problem and linked workspace records only when the linked records have submitter/member/public visibility and safe statuses.
-- Cannot read admin-only companion metadata for their own problem.
-- Can update only safe intake fields while the problem status remains editable.
+- `npm install` must be able to install `@firebase/rules-unit-testing`, `firebase-tools`, and `firebase-admin`.
+- Java must be installed for the Firestore emulator.
+- No production credentials are required for rules tests.
 
-## Competition team member
+## Test personas
 
-- Can read own team/submission records.
-- Cannot read `competition_evaluations` or submission admin metadata.
-- Cannot set scoring, evaluation, result declaration, or reviewer fields.
+- Public visitor
+- Incomplete profile user
+- Completed member
+- Problem submitter
+- Competition team member
+- Assigned internal member
+- Admin
+- Super-admin
 
-## Assigned internal member
+## Collections covered
 
-- Can read assigned execution work/action/meeting records.
-- Can update only status, completion notes, blocker reason, evidence links, and `updatedAt` on assigned work/action items.
-- Cannot read governance, decisions, execution reviews, or unassigned execution records.
+`problem_statements`, `problem_admin_metadata`, `knowledge_assets`, `competitions`, `competition_teams`, `competition_submissions`, `competition_evaluations`, `competition_submission_admin_metadata`, `governance_documents`, `execution_work_items`, `execution_reviews`, `contribution_records`, and `contribution_claims`.
 
-## Admin / super-admin
+## Cases automated
 
-- Can manage admin workflows, companion metadata, governance, execution, evaluations, contribution review records, and publishing/review actions.
-- Super-admin fallback remains available for unmatched documents.
+- Public can read public published problem, public approved knowledge, and public open competition.
+- Public cannot read private problem, admin metadata, competition submissions/evaluations, governance, execution, or contribution records.
+- Incomplete users cannot write public/published content or sensitive competition submissions; current rules still allow submitter-only problem creation when ownership and status constraints are satisfied.
+- Members can create owned submitter-only problems and contribution claims, but cannot read another user's private problem or publish public knowledge.
+- Submitters can read their own problem and cannot read companion metadata.
+- Team members can read their own team/submission, not other teams' submissions or evaluations, and cannot declare results.
+- Assigned internal members can read assigned work and update only allowed fields, not restricted fields or unassigned work.
+- Admins can read/write companion metadata and admin modules and can publish/approve where rules allow.
+- Super-admin can read at least the admin-level resources and use the fallback for unmatched collections.
 
-## Negative checks
+## Cases still manual
 
-- Confirm no non-admin write can include `adminNotes`, `internalNotes`, `adminInternalNotes`, `reviewNotes`, `reviewerNotes`, `decisionNotes`, `privateFeedback`, `adminOnlySummary`, or `reviewerComments` on shared documents.
-- Confirm public/member reads fail on all companion metadata collections.
+- Query shape/index behavior for complex production list pages.
+- End-to-end UI route gating.
+- Production IAM/service-account separation for migration execution.
+- Profile-completion enforcement for problem creation, because the current rule checks ownership/status but does not read `profileComplete`.
+
+## Limitations
+
+Rules tests validate Firestore authorization only. They do not prove repository functions stripped sensitive fields; that remains covered by typecheck/lint/build and migration dry-run review.
