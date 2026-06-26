@@ -12,7 +12,6 @@ function authCode(error: unknown) { return typeof error === "object" && error !=
 export function AuthModal({ open, onClose, returnTo, message = "Please sign in to continue", onSuccess }: { open: boolean; onClose: () => void; returnTo?: string; message?: string; onSuccess?: () => void | Promise<void> }) {
   const router = useRouter();
   const [error, setError] = useState("");
-  const [mode, setMode] = useState<"signin" | "join">("signin");
   if (!open) return null;
   async function done() {
     const currentUser = auth.currentUser;
@@ -35,6 +34,10 @@ export function AuthModal({ open, onClose, returnTo, message = "Please sign in t
     const emailValue = String(formData.get("email")).trim();
     const password = String(formData.get("password"));
     try {
+      try { await signInWithEmailAndPassword(auth, emailValue, password); }
+      catch (e) {
+        if (authCode(e) !== "auth/user-not-found" && authCode(e) !== "auth/invalid-credential") throw e;
+        await createUserWithEmailAndPassword(auth, emailValue, password);
       if (mode === "join") await createUserWithEmailAndPassword(auth, emailValue, password);
       else {
         try { await signInWithEmailAndPassword(auth, emailValue, password); }

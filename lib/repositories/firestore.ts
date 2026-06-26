@@ -434,6 +434,11 @@ export async function ensureUserProfile(
       role: profile.role,
     });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
+    // Basic member access is automatic. Auxiliary admin review/stat writes must not block login.
+    await bumpStats("memberCount").catch((error) =>
+      console.warn("[PROFILE] Unable to bump member count", error),
+    );
+    await createNewUserRoleReview(user.uid, profile);
     // Basic member access is automatic; admins can review every new signup in People & Access.
     await Promise.all([bumpStats("memberCount"), createNewUserRoleReview(user.uid, profile)]);
     return { id: user.uid, ...profile } as unknown as UserProfile;
