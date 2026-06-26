@@ -8,6 +8,7 @@
 | Historical shared documents may still contain migrated sensitive fields if real data is introduced before migration. | Low now / High before launch | `scripts/migrate-sensitive-fields.ts`, content collections | Current data is mostly blank/test/junk, so migration is optional now; revisit backup/migration policy before public launch with real user data. |
 | Repository types include old and new naming for challenges/problem statements and research posts/items. | Medium | `lib/types.ts`, `lib/repositories/firestore.ts` | Plan a non-risky type alias cleanup and database migration separately. |
 | `npm run lint` invokes deprecated interactive `next lint` setup because no ESLint configuration is committed. | Low | `package.json`, project lint config | Migrate to ESLint CLI/config in a follow-up. |
+| CI dependency installs are not deterministic until a lockfile is committed. | Low | `.github/workflows/qa-security.yml`, `package.json` | Commit `package-lock.json` later and switch CI back to cached `npm ci` for deterministic installs. |
 
 ## Prompt 8B remaining issues
 
@@ -40,3 +41,9 @@
 - **Severity:** Resolved in Firestore rules for practical member create paths.
 - **Risk:** Client-side AuthGate alone was insufficient.
 - **Next action:** Maintain `isProfileCompleteUser()` checks and emulator denial tests for incomplete users.
+
+### CI lockfile follow-up
+
+- **Severity:** Low.
+- **Risk:** The QA security workflow uses `npm install --no-audit --no-fund` because no `package-lock.json`, `npm-shrinkwrap.json`, or `yarn.lock` is committed. This avoids the setup-node cache/npm-ci failure, but installs are not deterministic.
+- **Next action:** Commit `package-lock.json` in a dedicated dependency maintenance change, re-enable npm caching, and switch the workflow back to `npm ci`.
