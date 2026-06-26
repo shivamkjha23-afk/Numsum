@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "MSME Intelligence — NumSum Labs", description: "Evidence-backed MSME market and technology intelligence for industrial upgradation." };
 import { Card } from "@/components/ui";
 import { exportOpportunities, governmentSchemes, industryClusters, industryReports, marketInsights, msmeSectors, msmeSources, stateMsmeDistribution, technologyTrends } from "@/lib/msme-intelligence-data";
 

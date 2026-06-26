@@ -82,3 +82,12 @@ Current route inventory for the NumSum Labs website stabilization pass.
 | Old challenge aliases | Legacy | `ProblemStatement` is canonical; public label may remain “MSME Challenge”; Firestore `/challenges` legacy collection is admin-only. |
 | Manufacturing sprint/demo routes | Demo/future | Keep out of primary navigation unless explicitly converted to production routes. |
 | Upload/demo routes | Limited utility | Research upload stays authenticated and review-gated; no public file upload surface is enabled. |
+
+## Public positioning routes
+- `/` — Public landing page for NumSum Labs with problem-first MSME positioning, public-safe metrics, public highlights, and CTAs.
+- `/about` — Public NumSum Labs positioning and institutional mission page.
+- `/problem-statements` — Public approved MSME challenges.
+- `/submit-problem` — Auth/profile-complete protected MSME challenge intake.
+- `/research`, `/knowledge`, `/sops` — Public approved knowledge, research, and SOP resources.
+- `/competitions` — Public MSME innovation challenges.
+- `/pilots` — Public approved pilot and impact records.

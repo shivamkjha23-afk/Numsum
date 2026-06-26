@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Knowledge & Research — NumSum Labs", description: "Approved research, technology intelligence, case studies, and practical knowledge for MSME problem solving." };
 import { Suspense } from "react";
 import { EmptyState, LoadingState } from "@/components/data-states";
 import { Card } from "@/components/ui";

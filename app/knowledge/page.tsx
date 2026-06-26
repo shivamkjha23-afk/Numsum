@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Knowledge Assets — NumSum Labs", description: "Public approved knowledge assets and frameworks for MSME industrial upgradation." };
 import { Suspense } from "react";
 import { CollectionBrowser } from "@/components/collection-browser";
 import { EmptyState, ErrorState, LoadingState } from "@/components/data-states";

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "SOP Library — NumSum Labs", description: "Public approved SOPs for practical industrial improvement and MSME implementation." };
 import { Card } from "@/components/ui";
 import { getPublicSOPDocuments } from "@/lib/repositories/firestore";
 export default async function SOPsPage() { const rows = await getPublicSOPDocuments(); return <main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">SOP Library</h1><p className="mt-3 text-white/60">Approved and published implementation procedures from NumSum Labs.</p><div className="mt-8 grid gap-4 md:grid-cols-2">{rows.map((s)=><Card key={s.id}><p className="text-sm text-blue-200">{[s.industrySegment,s.processArea,`v${s.version||1}`].filter(Boolean).join(" · ")}</p><h2 className="mt-2 font-display text-2xl">{s.title}</h2><p className="mt-2 text-white/65">{s.objective || s.summary}</p>{s.tags?.length ? <p className="mt-3 text-xs text-white/45">{s.tags.join(", ")}</p>:null}</Card>)}</div>{!rows.length && <p className="mt-8 text-white/60">No public SOPs have been published yet.</p>}</main> }
