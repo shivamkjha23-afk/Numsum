@@ -62,3 +62,11 @@ Status markers: **Pass**, **Fail**, **Needs Manual Seeded Data**, **Blocked by E
 - Pass — `npm run lint` (existing warnings only; no lint errors)
 - Pass — `npm run build`
 - Blocked by Environment — `npm run test:rules` (`firebase` CLI unavailable: `sh: 1: firebase: not found`)
+
+## Production deployment readiness
+
+- [ ] Confirm `.env.example` matches all variables used by the app and admin scripts.
+- [ ] Confirm Firestore rules tests pass in CI or document the local emulator blocker.
+- [ ] Confirm Firestore indexes are deployed before smoke testing production.
+- [ ] Confirm public pages render useful empty states with no fake metrics or success stories.
+- [ ] Confirm admin bootstrap and baseline seed scripts are not run automatically.

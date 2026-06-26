@@ -11,7 +11,9 @@
     "test:rules": "firebase emulators:exec --only firestore \"tsx tests/firestore-rules/firestore-rules.test.ts\"",
     "test:rules:watch": "tsx tests/firestore-rules/firestore-rules.test.ts",
     "dev:reset-firestore:dry-run": "tsx scripts/dev-reset-firestore.ts --dry-run",
-    "dev:reset-firestore:apply": "tsx scripts/dev-reset-firestore.ts --apply --confirm-dev-reset"
+    "dev:reset-firestore:apply": "tsx scripts/dev-reset-firestore.ts --apply --confirm-dev-reset",
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "seed:baseline": "tsx scripts/seed-production-baseline.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.0",
