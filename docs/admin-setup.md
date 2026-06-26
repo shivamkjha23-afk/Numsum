@@ -90,3 +90,7 @@ Use the Firebase Console or the bootstrap script with `--role member` after conf
 ## Avoid lockout
 
 Keep at least two verified admins during launch week when possible. Test role changes in staging first. Do not rely on client-side edits for roles; use the Firebase Console or Admin SDK with audited operator credentials.
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

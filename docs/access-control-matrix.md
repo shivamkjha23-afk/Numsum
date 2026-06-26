@@ -61,3 +61,7 @@ Prompt 8B-2 adds a controlled migration path for historical sensitive fields. Co
 | Governance remains admin-only | Pass by static review; Needs Manual Seeded Data for browser QA | No public nav exposure; admin gates remain. |
 | Execution remains admin/assigned-member only | Pass by static review; Needs Manual Seeded Data for browser QA | No public nav exposure; assigned-member paths require seeded assignments. |
 | Contributions remain admin/contributor only | Pass by static review; Needs Manual Seeded Data for browser QA | Public nav excludes contribution routes; member dashboard links only own contribution page. |
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

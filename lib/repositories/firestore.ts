@@ -45,6 +45,7 @@ import type {
   DiscussionTargetType,
   Competition,
   CompetitionSubmission,
+  Role,
   CompetitionTeam,
   CompetitionParticipation,
   CompetitionEvaluation,
@@ -140,6 +141,7 @@ export const COLLECTIONS = {
   adminApplications: "admin_applications",
   adminInbox: "admin_inbox",
   bootstrapAdmins: "bootstrap_admins",
+  userRoleRequests: "user_role_requests",
   teamMembers: "team_members",
   systemStats: "system_stats",
   systemDocuments: "system_documents",
@@ -359,6 +361,30 @@ export async function isBootstrapAdminEmail(email?: string | null) {
   );
   return Boolean(admin?.active !== false && admin?.role === "admin");
 }
+
+function authProvider(user: FirebaseUser) {
+  return user.providerData.find((provider) => provider.providerId === "google.com")
+    ? "google"
+    : user.providerData.find((provider) => provider.providerId === "password")
+      ? "password"
+      : "unknown";
+}
+
+async function createNewUserRoleReview(userId: string, profile: Partial<UserProfile>) {
+  return upsertRecord(COLLECTIONS.userRoleRequests, userId, {
+    userId,
+    email: profile.email || "",
+    displayName: profile.displayName || profile.name || "",
+    requestedRole: "member",
+    currentRole: "member",
+    status: "pending_review",
+    reason: "New user signup",
+    provider: profile.provider || "unknown",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }).catch((error) => console.warn("[PROFILE] Unable to create role review record", error));
+}
+
 export async function ensureUserProfile(
   user: FirebaseUser,
 ): Promise<UserProfile> {
@@ -384,12 +410,13 @@ export async function ensureUserProfile(
     updatedAt: serverTimestamp(),
   };
   if (!existing) {
-    const profile = {
+    const profile: Record<string, unknown> = {
       uid: user.uid,
       ...base,
       role: isBootstrapAdmin ? "admin" : "member",
       status: "active",
       profileComplete: false,
+      provider: authProvider(user),
       createdAt: serverTimestamp(),
     };
     console.info("[PROFILE] Creating user profile", {
@@ -398,10 +425,15 @@ export async function ensureUserProfile(
       role: profile.role,
     });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
+    if (!isBootstrapAdmin) await createNewUserRoleReview(user.uid, profile);
     await bumpStats("memberCount");
-    return { id: user.uid, ...profile } as UserProfile;
+    return { id: user.uid, ...profile } as unknown as UserProfile;
   }
-  const patch: Record<string, unknown> = { uid: user.uid, ...base };
+  const patch: Record<string, unknown> = { uid: user.uid, updatedAt: serverTimestamp() };
+  if (!existing.email) patch.email = base.email;
+  if (!existing.displayName) patch.displayName = base.displayName;
+  if (!existing.name) patch.name = base.name;
+  if (!existing.provider) patch.provider = authProvider(user);
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
   if (!existing.status) patch.status = "active";
   if (!existing.role) patch.role = "member";
@@ -420,9 +452,9 @@ export async function ensureUserProfile(
   return {
     ...existing,
     uid: user.uid,
-    email: base.email,
-    displayName: base.displayName,
-    name: base.name,
+    email: existing.email || base.email,
+    displayName: existing.displayName || base.displayName,
+    name: existing.name || base.name,
     status: (patch.status as string) || existing.status || "active",
     role: (patch.role as UserProfile["role"]) || existing.role || "member",
   } as UserProfile;
@@ -486,8 +518,15 @@ export async function createUserProfileIfMissing(user: FirebaseUser) {
   return ensureUserProfile(user);
 }
 
+const SELF_PROFILE_BLOCKED_FIELDS = new Set(["role", "status", "contributionScore", "recognition", "adminNotes", "internalNotes", "adminInternalNotes", "reviewNotes", "reviewerNotes", "isAdmin", "isSuperAdmin"]);
+
+function safeUserProfilePatch(patch: Partial<UserProfile>) {
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => !SELF_PROFILE_BLOCKED_FIELDS.has(key))) as Partial<UserProfile>;
+}
+
 export async function updateUserProfile(userId: string, patch: Partial<UserProfile>) {
   const existing = await getRecord<UserProfile>(COLLECTIONS.users, userId);
+  patch = safeUserProfilePatch(patch);
   const profileComplete = isProfileComplete({ ...existing, ...patch, id: userId });
   const payload: Record<string, unknown> = {
     ...patch,
@@ -2397,11 +2436,6 @@ export async function getSystemHealthCounts() {
 }
 
 
-export async function updateUserRoleAndStatus(userId: string, reviewerId: string, patch: { role?: UserProfile["role"]; status?: string; organization?: string }) {
-  await updateRecord(COLLECTIONS.users, userId, patch as Record<string, unknown>);
-  await logAudit({ actorId: reviewerId, action: "user_governance_updated", collectionName: COLLECTIONS.users, documentId: userId, after: patch });
-}
-
 export async function createMsmeCase(data: Omit<MsmeCase, "id" | "createdAt" | "updatedAt">) {
   return createRecord<MsmeCase>(COLLECTIONS.msmeCases, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<MsmeCase, "id">>);
 }
@@ -2588,3 +2622,24 @@ export const reviewContributionClaim = (id: string, status: ContributionClaim["s
 export async function convertContributionClaimToRecord(id: string, reviewerId = uid()) { const claim = await getRecord<ContributionClaim>(COLLECTIONS.contributionClaims, id); if (!claim) throw new Error("Contribution claim not found"); const record = await createContributionRecord({ contributorUserId: claim.contributorUserId, contributorName: claim.contributorName, contributionTitle: claim.claimTitle, contributionSummary: claim.claimSummary, contributionCategory: claim.requestedCategory, contributionType: claim.requestedType, relatedEntityType: claim.relatedEntityType, relatedEntityId: claim.relatedEntityId, evidenceLinks: claim.evidenceLinks, reviewStatus: "under_review", visibility: "contributor_only", createdBy: reviewerId }); await reviewContributionClaim(id, "accepted", "Converted to contribution record."); return record; }
 
 export async function getContributionMetrics(userId?: string) { const [records, claims, cycles, recognition] = await Promise.all([userId?getContributionRecordsForContributor(userId):getAdminContributionRecords(), userId?getMyContributionClaims(userId):getAdminContributionClaims(), getContributionReviewCycles().catch(()=>[]), userId?getRecognitionRecordsForContributor(userId):getAdminRecognitionRecords()]); const month = new Date(); month.setDate(1); month.setHours(0,0,0,0); const dt=(v:any)=>v?.toDate?.() || (v?new Date(v):null); return { total: records.length, pending: records.filter(r=>["auto_logged","submitted","under_review","needs_revision"].includes(r.reviewStatus)).length, accepted: records.filter(r=>r.reviewStatus==="accepted").length, rejected: records.filter(r=>r.reviewStatus==="rejected").length, autoLogged: records.filter(r=>r.reviewStatus==="auto_logged").length, acceptedThisMonth: records.filter(r=>r.reviewStatus==="accepted" && dt(r.reviewedAt) && dt(r.reviewedAt)>=month).length, claimsPending: claims.filter(c=>["submitted","under_review","needs_revision"].includes(c.status)).length, activeReviewCycles: cycles.filter(c=>["open","under_review"].includes(c.status)).length, recognitionThisMonth: recognition.filter(r=>dt(r.awardedAt)||dt(r.createdAt)).filter(r=>(dt(r.awardedAt)||dt(r.createdAt))>=month).length }; }
+
+
+export const getUserRoleRequests = cache(async () => listCollection<any>(COLLECTIONS.userRoleRequests, [limit(500)]));
+export const getUsersForRoleManagement = cache(async () => listCollection<UserProfile>(COLLECTIONS.users, [limit(500)]));
+
+export async function updateUserRoleAndStatus(targetUserId: string, patch: { role?: Role; status?: string }, actor: UserProfile) {
+  if (!actor.uid) throw new Error("Admin profile missing uid.");
+  if (targetUserId === actor.uid && patch.role && patch.role !== actor.role) throw new Error("You cannot change your own role.");
+  const target = await getRecord<UserProfile>(COLLECTIONS.users, targetUserId);
+  if (!target) throw new Error("User not found.");
+  if (actor.role !== "admin" && actor.role !== "super_admin") throw new Error("Admin access required.");
+  if (actor.role === "admin" && patch.role === "super_admin") throw new Error("Only a super-admin can assign super-admin.");
+  if (target.role === "super_admin" && patch.role && patch.role !== "super_admin") {
+    const superAdmins = (await listCollection<UserProfile>(COLLECTIONS.users, [where("role", "==", "super_admin"), limit(2)])).filter((u) => u.status !== "inactive");
+    if (superAdmins.length <= 1) throw new Error("Cannot demote the last active super-admin.");
+  }
+  const safePatch = { ...patch, updatedAt: serverTimestamp() } as Record<string, unknown>;
+  await updateRecord(COLLECTIONS.users, targetUserId, safePatch);
+  await upsertRecord(COLLECTIONS.userRoleRequests, targetUserId, { userId: targetUserId, currentRole: patch.role || target.role || "member", status: "reviewed", reviewedBy: actor.uid, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  await logAudit({ actorId: actor.uid, action: "user_role_status_updated", entityType: "users", entityId: targetUserId, summary: `Updated ${target.email || targetUserId}`, metadata: { beforeRole: target.role, afterRole: patch.role || target.role, status: patch.status || target.status } } as any).catch(() => undefined);
+}
