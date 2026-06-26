@@ -56,3 +56,17 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 - Pending role requests are documented and implemented as workflow records, not permission grants.
 - Admin navigation is grouped to avoid a long flat dropdown that can cover the hero.
 - Home hero title/typewriter phrases have been restored.
+
+## 2026-06-26 verification pass status
+
+| Issue | Status | Notes |
+|---|---|---|
+| First-login/profile-completion browser validation | needs manual verification | Static/rules checks pass, but new-user document creation and intended-route return need real Firebase Auth browser QA. |
+| Community persona CTA and participation states | needs manual verification | Rules and route build are aligned; verify public, incomplete, completed member, and admin moderation states with seeded discussion records. |
+| Competition public/member/admin permission smoke tests | needs manual verification | Static/rules review found no regression; verify no permission errors in browser for public, completed member, and admin. |
+| Role request approve/reject workflow | needs manual verification | Rules protect pending requests; admin UI approve/reject effects on `UserProfile.role` need browser/staging verification. |
+| Admin grouped/mobile navigation | needs manual verification | Build succeeds and route map is current; mobile menu usability needs viewport QA. |
+| Home hero rotation/readability | needs manual verification | Home route builds; typewriter rotation/dropdown overlay behavior needs visual browser QA. |
+| Firestore emulator rules suite in this container | blocked by environment | `npm run test:rules` attempted to download `cloud-firestore-emulator-v1.19.8.jar` and failed with HTTP 403. Run in CI or an environment with emulator artifact access. |
+
+No issue from the requested auth, role, competition, community, navigation, or hero verification pass is classified as **still broken** based on static review and local type/lint/build checks. Remaining items are manual browser or environment-dependent verification gates.

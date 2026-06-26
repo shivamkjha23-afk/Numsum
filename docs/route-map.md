@@ -124,3 +124,17 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 - `/competitions` remains public and uses public-safe competition reads only. Admin competition management remains under `/admin/competitions`.
 - Admin navigation is grouped into Platform, MSME Problem Pipeline, Knowledge & Research, Pilots & Impact, Competitions, Governance & Objectives, Operations, and People & Access.
 - Home hero uses the restored rotating title phrases and preserves the Submit MSME Challenge, Explore MSME Challenges, and Explore Knowledge & Research CTAs.
+
+## 2026-06-26 verification pass — route/navigation status
+
+| Route/navigation area | Status | Notes |
+|---|---|---|
+| `/profile/complete` first-login redirect target | fixed; needs manual verification | Route exists and is documented as mandatory for incomplete profiles; verify in browser with a new user. |
+| `/dashboard` or intended-route return after completion | needs manual verification | Requires authenticated browser flow. |
+| `/community` | fixed; needs manual verification | Public route builds and is documented as public-safe; verify public/incomplete/member/admin states with seeded discussion data. |
+| `/admin/community` | fixed; needs manual verification | Route builds as admin module; verify moderation UI with admin account. |
+| `/competitions` | fixed; needs manual verification | Public route builds separately from admin management and should use public-safe records; verify public/member/admin no-permission-error cases. |
+| `/admin/competitions` and `/admin/competitions/[id]` | fixed; needs manual verification | Build output includes both admin management routes; verify admin click-through and data loading. |
+| `/admin/users` role request management | fixed; needs manual verification | Build output includes the route; approve/reject workflows need admin browser QA. |
+| Admin navigation grouping | fixed; needs manual verification | Group names remain Platform, MSME Problem Pipeline, Knowledge & Research, Pilots & Impact, Competitions, Governance & Objectives, Operations, and People & Access; verify mobile menu interactions. |
+| Home hero CTAs | fixed; needs manual verification | Expected CTAs remain Submit MSME Challenge, Explore MSME Challenges, and Explore Knowledge & Research; verify click-through and readability in browser. |
