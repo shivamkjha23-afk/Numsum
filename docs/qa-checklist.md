@@ -1,66 +1,64 @@
-# QA Checklist
+# QA Checklist — Prompt 8D Prelaunch Review
 
-- [ ] Public homepage loads and primary CTA is Submit MSME Challenge.
-- [ ] Public navigation excludes Community, Organizations, Team Directory, Notifications, broad team pages, demo routes, and `/admin?tab=` links.
-- [ ] Public routes `/problem-statements`, `/research`, `/knowledge`, `/sops`, `/competitions`, `/pilots`, and `/msme-intelligence` show only public-safe data.
-- [ ] Logged-in incomplete-profile user is redirected to profile completion before member actions.
-- [ ] Completed member can open `/dashboard` and sees simplified sections/empty states.
-- [ ] Submitter can view own private problem and cannot view another submitter private problem.
-- [ ] Competition team member can view only own team and submissions.
-- [ ] Public cannot view private competition submissions or evaluations.
-- [ ] Public/member user opening any `/admin/...` route sees admin-access-required only.
-- [ ] Admin user can open all admin navigation links after auth.
-- [ ] Firestore rules simulator verifies problem statement public/member/submitter/admin cases.
-- [ ] Dashboard links resolve to real routes.
-- [ ] Mobile header/menu, wide tables, tabs, and cards do not overflow.
-- [ ] Build/typecheck/lint run and blockers are documented.
+Status markers: **Pass**, **Fail**, **Needs Manual Seeded Data**, **Blocked by Environment**, **Not Applicable**.
 
-## Prompt 8B route and access smoke checklist
+## Automated/static checks completed in this pass
 
-### Passed by static review / build verification
+| Check | Status | Evidence / notes |
+|---|---|---|
+| Public homepage keeps primary CTA as Submit MSME Challenge. | Pass | Static route/navigation review; primary public nav and footer point to `/submit-problem`. |
+| Public navigation excludes Community, Organizations, Team Directory, Notifications, broad team pages, demo routes, and `/admin?tab=` links. | Pass | `lib/navigation.ts` contains only public product routes plus admin-only nav. |
+| Footer excludes admin/member-only links. | Pass | Footer lists only public-safe pages and Submit MSME Challenge. |
+| Public routes `/`, `/about`, `/submit-problem`, `/problem-statements`, `/knowledge`, `/sops`, `/research`, `/competitions`, `/pilots`, `/msme-intelligence` remain public-positioned. | Pass | Static route sweep; hidden/future modules are not linked from primary nav/footer. |
+| Admin dashboard cards link to route-based admin pages instead of old `/admin?tab=...` links. | Pass | Static sweep found no `/admin?tab=` links in app/components/lib/docs except checklist history text. |
+| Member dashboard has clear sections and no community/social feed widgets. | Pass | Dashboard now emphasizes profile, problems, competitions, teams, submissions, knowledge/research, contributions, recognition, and assigned work. |
+| Incomplete-profile users are routed to profile completion before member actions. | Pass | `AuthGate` redirects non-admin incomplete users to `/profile/complete`. Firestore rules coverage remains documented. |
+| Admin data is not loaded before AuthGate admin confirmation on `/admin`. | Pass | Admin dashboard data loader is rendered inside `AuthGate adminOnly`. |
+| Governance is absent from public navigation and remains admin-only. | Pass | Static navigation and route-gating review. |
+| Execution is absent from public navigation and remains admin/assigned-member oriented. | Pass | Static navigation and route-gating review. |
+| Contributions are absent from public navigation and remain admin/contributor oriented. | Pass | Static navigation and route-gating review. |
+| Mobile overflow risk for dashboards is reduced. | Pass | Dashboard containers/cards use wrapping grids, `min-w-0`, break-word text, and existing admin tables use horizontal scrolling. |
+| Typecheck. | Pass | `npm run typecheck` passed. |
+| Lint. | Pass | `npm run lint` passed with existing warnings only. |
+| Build. | Pass | `npm run build` passed. |
+| Rules tests. | Blocked by Environment | `npm run test:rules` failed because the `firebase` CLI executable is unavailable in this container (`sh: 1: firebase: not found`). CI remains configured in `.github/workflows/qa-security.yml`. |
 
-- Public pages use public-safe repository functions constrained by visibility/status for problems, competitions, research, knowledge/SOP, and pilots.
-- Admin/governance/execution/contribution review routes remain behind admin or assigned-member gates.
-- Competition evaluations and new competition submission review metadata are admin-only.
-- Hidden/future modules remain documented rather than promoted as completed product areas.
+## Persona route QA
 
-### Needs manual verification with seeded accounts
+| Persona | Test | Status | Notes |
+|---|---|---|---|
+| Public visitor | Can access public landing and public libraries. | Pass | Static route review and build success. |
+| Public visitor | Cannot access admin routes. | Needs Manual Seeded Data | Requires browser/Auth Firebase session smoke test; client gate and rules are in place. |
+| Public visitor | Cannot access member dashboard. | Needs Manual Seeded Data | Requires browser/Auth Firebase session smoke test; client gate is in place. |
+| Public visitor | Sees only public-safe data. | Needs Manual Seeded Data | Requires seeded public/private records to verify live Firestore visibility filters. |
+| Incomplete profile user | Cannot perform member actions; redirected to profile completion. | Needs Manual Seeded Data | AuthGate/rules implementation reviewed; needs seeded incomplete user. |
+| Completed member | Can access `/dashboard`. | Needs Manual Seeded Data | Requires seeded completed member. |
+| Completed member | Cannot access `/admin`. | Needs Manual Seeded Data | Requires seeded non-admin member. |
+| Submitter | Can view own problem workspace. | Needs Manual Seeded Data | Requires problem submitted by seeded user. |
+| Submitter | Cannot view another user's private problem. | Needs Manual Seeded Data | Requires two seeded submitters and private records. |
+| Competition team member | Can view own team/submission only. | Needs Manual Seeded Data | Requires seeded competition, team, and submission. |
+| Assigned internal member | Can view assigned execution items only. | Needs Manual Seeded Data | Requires seeded assigned work/action items. |
+| Admin | Can access admin modules and route links. | Needs Manual Seeded Data | Requires seeded admin account. |
+| Super-admin | Can access admin modules and super-admin fallback where supported. | Needs Manual Seeded Data | Requires seeded super-admin account; no separate public super-admin module was added. |
 
-1. Public visitor: home, problem statements, knowledge, SOPs, research, competitions, pilots, success stories, MSME intelligence.
-2. Incomplete logged-in user: dashboard/profile completion gates and submit-problem denial.
-3. Completed member: dashboard, my problems, my competitions, my teams, my submissions, my knowledge/research, my contributions.
-4. Submitter: own problem workspace visible; admin metadata not readable.
-5. Competition team member: own team/submission visible; evaluations and admin metadata denied.
-6. Assigned internal member: assigned execution items visible; unassigned execution/governance denied.
-7. Admin: admin dashboards and review workflows available.
-8. Super-admin: super-admin-only fallback and destructive controls validated separately.
+## Module QA checklist
 
-### Prompt 8B status
+| Area | Status | Notes |
+|---|---|---|
+| Admin Dashboard | Pass | Grouped route cards, loading/error fallback, founding-stage empty states, and route links reviewed. |
+| Admin Module Pages | Needs Manual Seeded Data | Routes are admin-gated; seeded data needed to verify edit/detail/destructive workflows end-to-end. |
+| Member Dashboard | Pass | Community/social widgets removed from the dashboard; sections and empty states clarified. |
+| Problem Workspace | Needs Manual Seeded Data | Static review confirms safe tabs/empty states; seeded admin/submitter/public cases required for final data visibility QA. |
+| Public Pages | Pass | Navigation/footer/static copy reviewed; public-safe repository functions remain in use. |
+| Competitions | Needs Manual Seeded Data | Public/member/admin flow requires seeded eligibility/team/submission/deadline states. |
+| Governance | Needs Manual Seeded Data | Static route gate reviewed; document/amendment edit flows need seeded admin browser QA. |
+| Execution | Needs Manual Seeded Data | Assigned member/admin navigation requires seeded work items. |
+| Contributions | Needs Manual Seeded Data | Score warning reviewed; claim/review/evidence links need seeded contributor/admin QA. |
+| Mobile / Responsive | Needs Manual Seeded Data | Static layout improvements applied; visual browser testing at mobile/tablet/desktop should be repeated with seeded content. |
 
-- **Pass:** Static rule review found no broad public reads for governance, execution reviews, competition evaluations, contribution review cycles, or companion metadata collections.
-- **Pass:** Build/typecheck/lint status is recorded in this PR summary.
-- **Needs manual verification:** Persona route smoke tests require Firebase Auth/Firestore seeded accounts and should follow `docs/firestore-rules-test-plan.md`.
+## Commands run
 
-
-## Prompt 8B-2 migration and rules QA
-
-- Historical sensitive-field migration is partially resolved: `scripts/migrate-sensitive-fields.ts` supports dry-run and apply modes.
-- Production Firestore migration must be dry-run reviewed before apply.
-- A Firestore backup/export should be taken before apply.
-- Firestore emulator rules tests are located at `tests/firestore-rules/firestore-rules.test.ts` and should be run with `npm run test:rules`.
-
-## Clean environment and security readiness
-
-- [ ] Confirm historical sensitive-field migration remains optional for current blank/test/junk data.
-- [ ] Use `docs/dev-data-reset.md` for any dev/staging/test reset; never reset production or real user data.
-- [ ] Verify incomplete-profile users are denied problem, competition registration/team/submission, knowledge/research, and contribution create operations by Firestore rules.
-- [ ] Verify completed members can create allowed owned private/member records but cannot publish/make public or read others' private records.
-- [ ] Confirm `.github/workflows/qa-security.yml` runs typecheck, lint, build, and rules tests without migration/reset apply commands.
-- [ ] Complete manual route smoke testing with seeded Firebase Auth users after reset.
-
-## Prompt 8C public site polish checks
-- Confirm homepage headline, subheadline, and primary CTA say Submit MSME Challenge.
-- Confirm public metrics use only public-safe data or founding-stage copy.
-- Confirm public navigation and footer exclude Community, Organizations, Team Directory, Notifications, and admin/internal links.
-- Confirm success stories, pilots, knowledge, research, SOPs, and competitions display only approved/public records.
-- Run `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run test:rules` when available.
+- Pass — `npm run typecheck`
+- Pass — `npm run lint` (existing warnings only; no lint errors)
+- Pass — `npm run build`
+- Blocked by Environment — `npm run test:rules` (`firebase` CLI unavailable: `sh: 1: firebase: not found`)

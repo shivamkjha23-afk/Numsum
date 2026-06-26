@@ -138,12 +138,13 @@ const moduleCards = [
   ["Problems", "/admin/problems", "Review submissions and workspace activity."],
   ["Onboarding", "/admin/questionnaires", "Manage templates and follow-up data."],
   ["Knowledge/SOP", "/admin/knowledge", "Review knowledge assets and SOP library."],
-  ["Research", "/admin/research", "Curate research and technology watch."],
-  ["Pilots/Impact", "/admin/pilots", "Track pilots and public success stories."],
+  ["Research / Technology Watch", "/admin/research", "Curate research and technology watch."],
+  ["Pilots / Impact", "/admin/pilots", "Track pilots and public success stories."],
   ["Competitions", "/admin/competitions", "Manage challenge teams, submissions and results."],
-  ["Governance/Objectives", "/admin/governance", "Admin-only governance and targets."],
+  ["Governance / Objectives", "/admin/governance", "Admin-only governance and targets."],
   ["Execution", "/admin/execution", "Coordinate internal work items."],
   ["Contributions", "/admin/contributions", "Review contribution records and scoring."],
+  ["Security / System Health", "/admin/system-health", "Inspect rules, diagnostics, and platform health."],
 ] as const;
 
 export function AdminDashboardClient() {

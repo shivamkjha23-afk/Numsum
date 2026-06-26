@@ -43,3 +43,21 @@ Prompt 8B-2 adds a controlled migration path for historical sensitive fields. Co
 - Incomplete-profile users may read public-safe records but cannot create those member workflow records until their `users/{uid}.profileComplete` value is `true`.
 - Admin and super-admin access remains available through admin helpers and is not dependent on member profile-completion gates.
 - Historical sensitive-field migration remains available but optional for current blank/test/junk data. Use clean dev reset guidance in `docs/dev-data-reset.md` until real user data requires backup/migration policy review.
+
+## Prompt 8D QA access-control status
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Public cannot access admin routes | Needs Manual Seeded Data | Client AuthGate and Firestore rules are in place; verify with unauthenticated browser session. |
+| Public cannot access member dashboard | Needs Manual Seeded Data | Client AuthGate is in place; verify unauthenticated browser session. |
+| Incomplete user cannot perform member actions | Needs Manual Seeded Data | Client redirect and rules are in place; verify with seeded incomplete profile. |
+| Completed member can access dashboard | Needs Manual Seeded Data | Requires seeded completed profile. |
+| Member cannot access admin | Needs Manual Seeded Data | Requires seeded non-admin member. |
+| Member cannot view another user's private problem | Needs Manual Seeded Data | Requires two seeded submitters and private problem records. |
+| Submitter can view own problem | Needs Manual Seeded Data | Requires seeded submitter-owned problem. |
+| Team member can view own team/submission only | Needs Manual Seeded Data | Requires seeded competition/team/submission records. |
+| Admin can access admin modules | Needs Manual Seeded Data | Requires seeded admin account. |
+| Public pages show only public-safe data | Needs Manual Seeded Data | Requires public/private seeded records to verify filters. |
+| Governance remains admin-only | Pass by static review; Needs Manual Seeded Data for browser QA | No public nav exposure; admin gates remain. |
+| Execution remains admin/assigned-member only | Pass by static review; Needs Manual Seeded Data for browser QA | No public nav exposure; assigned-member paths require seeded assignments. |
+| Contributions remain admin/contributor only | Pass by static review; Needs Manual Seeded Data for browser QA | Public nav excludes contribution routes; member dashboard links only own contribution page. |

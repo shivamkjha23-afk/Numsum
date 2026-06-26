@@ -91,3 +91,11 @@ Current route inventory for the NumSum Labs website stabilization pass.
 - `/research`, `/knowledge`, `/sops` — Public approved knowledge, research, and SOP resources.
 - `/competitions` — Public MSME innovation challenges.
 - `/pilots` — Public approved pilot and impact records.
+
+## Prompt 8D route sweep notes
+
+- No production links should use old `/admin?tab=...` destinations; admin dashboard cards point to route-based admin pages.
+- Public navigation remains limited to `/`, `/submit-problem`, `/problem-statements`, `/msme-intelligence`, `/research`, `/competitions`, `/pilots`, and `/about`.
+- Public footer remains limited to public-safe routes and excludes admin/member-only pages.
+- Community, Organizations, Notifications, broad team-directory routes, and demo challenge aliases remain hidden/future or deprecated and are not deployment-readiness blockers while unlinked from primary navigation.
+- `/dashboard` is the canonical member hub; competition team/submission and contribution pages stay authenticated member routes.
