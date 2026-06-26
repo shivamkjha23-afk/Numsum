@@ -434,8 +434,8 @@ export async function ensureUserProfile(
       role: profile.role,
     });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
-    // Basic member access is automatic; elevated access uses role request workflow.
-    await bumpStats("memberCount");
+    // Basic member access is automatic; admins can review every new signup in People & Access.
+    await Promise.all([bumpStats("memberCount"), createNewUserRoleReview(user.uid, profile)]);
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
   const patch: Record<string, unknown> = { uid: user.uid, updatedAt: serverTimestamp() };
