@@ -342,3 +342,7 @@ Stores appreciation, certificates, featured contributor records, monthly/project
 
 ### `contribution_claims`
 Allows members to claim contribution work with related entity references and evidence links. Admins can review claims and convert accepted claims into contribution records.
+
+## Competition Module (Prompt 7A)
+
+Collections: `competitions`, `competition_teams`, `competition_participations`, `competition_submissions`, `competition_evaluations`, and `competition_results` model problem-linked challenges, team formation, participation, submissions, admin evaluation, and result declaration. Competitions can reference problem statements, objective targets, knowledge assets, research items, SOPs, and pilot tracks. Team and submission data is private to admins and owners/team members; evaluations are admin-only; public results require `visibility: public` and `status: published`.

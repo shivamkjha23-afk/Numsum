@@ -66,3 +66,7 @@ Research timeline events include `research_added`, `research_updated`, `research
 ## Pilot Tracker tab
 
 The workspace Pilots tab now supports admin creation of problem-linked pilots, status and visibility updates, active/completed indicators, milestone/update/metric entry points, evidence links, lessons learned, next steps, and links to `/pilots/[id]`. Submitters only see linked pilot summaries allowed by visibility, members see member/public pilots, and public users see public completed/published pilot summaries. Admin-only internal notes are not displayed outside admin views.
+
+## Competitions tab
+
+Problem workspaces surface linked competitions from `ProblemStatement.competitionIds` and `competitions.linkedProblemStatementId/sourceProblemId`. Admins can create a challenge from a problem, link existing competitions, update status, and review participant/submission counts. Members/public users only see competitions whose visibility and status allow access; private submissions and evaluations remain hidden.
