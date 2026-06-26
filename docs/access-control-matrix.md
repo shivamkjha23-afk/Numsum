@@ -18,3 +18,16 @@ Roles: public visitor, logged-in incomplete profile, completed member, submitter
 | Objectives | No | No | No | No | No | No | Yes | Yes |
 | Execution | No | No | No | No | No | Assigned work items | All | All |
 | Contributions | No | No | Own claims/records | Own records | Own records | Own/assigned records | All | All |
+
+## Prompt 8B field-safety addendum
+
+| Area | Public | Member | Owner / submitter / team | Assigned internal | Admin |
+| --- | --- | --- | --- | --- | --- |
+| Admin companion metadata | Denied | Denied | Denied | Denied | Read/write |
+| Problem admin notes | Denied via `problem_admin_metadata` | Denied | Denied | Denied | Read/write |
+| Onboarding/questionnaire/meeting internal notes | Denied via `onboarding_admin_metadata` | Denied | Denied | Denied | Read/write |
+| Pilot internal notes | Denied via `pilot_admin_metadata` | Denied | Denied | Denied | Read/write |
+| Competition submission admin/review notes | Denied via `competition_submission_admin_metadata` | Denied | Denied | Denied | Read/write |
+| Competition evaluations | Denied | Denied | Denied | Denied | Read/write |
+| Governance | Denied | Denied | Denied | Denied unless admin | Read/write |
+| Execution work/action/meeting | Denied | Denied unless assigned | Denied unless assigned | Read/limited update when assigned | Read/write |

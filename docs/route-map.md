@@ -70,3 +70,15 @@ Current route inventory for the NumSum Labs website stabilization pass.
 | /team | Public | public | future/hidden | no | Hidden until module is intentionally stabilized. |
 | /teams/create | Public | public | active | no |  |
 | /teams | Public | public | future/hidden | no | Hidden until module is intentionally stabilized. |
+
+## Prompt 8B hidden/future route handling
+
+| Route / area | Status | Prompt 8B handling |
+| --- | --- | --- |
+| `/community` and discussion creation | Hidden/future | Not promoted as a completed product; keep guarded/documented until Community/Discussions is intentionally built. |
+| `/organizations` | Hidden/future/admin-managed | Public organization directory is not enabled; Firestore organization reads remain admin-only. |
+| Public team directory / team members | Hidden/future | Firestore `team_members` reads remain admin-only until a public team directory is reviewed for privacy. |
+| `/notifications` | Member utility/future polish | Keep behind authenticated user-specific reads; do not expose in public navigation. |
+| Old challenge aliases | Legacy | `ProblemStatement` is canonical; public label may remain “MSME Challenge”; Firestore `/challenges` legacy collection is admin-only. |
+| Manufacturing sprint/demo routes | Demo/future | Keep out of primary navigation unless explicitly converted to production routes. |
+| Upload/demo routes | Limited utility | Research upload stays authenticated and review-gated; no public file upload surface is enabled. |
