@@ -99,3 +99,10 @@ Current route inventory for the NumSum Labs website stabilization pass.
 - Public footer remains limited to public-safe routes and excludes admin/member-only pages.
 - Community, Organizations, Notifications, broad team-directory routes, and demo challenge aliases remain hidden/future or deprecated and are not deployment-readiness blockers while unlinked from primary navigation.
 - `/dashboard` is the canonical member hub; competition team/submission and contribution pages stay authenticated member routes.
+
+## Final soft-launch route notes
+
+- `/admin` and the listed admin module routes must be verified with the real founder admin account before soft launch.
+- Public/incognito users and logged-in non-admin users must be blocked from `/admin`.
+- Hidden/future routes for Community/Discussions, Organizations, Notifications, and public team directory remain outside the public launch path.
+- After soft launch readiness, the next product-development step can return to Step 7B Community/Discussions.

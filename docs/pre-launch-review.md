@@ -46,3 +46,12 @@ Bootstrap the founder as admin/super-admin, run the minimal admin route checklis
 ## Updated current launch QA path
 
 The launch path no longer requires multiple seeded test users or fake personas. Required now: founder admin verification, public visitor smoke testing, founder/member flow smoke testing, and privacy checks that prove public and logged-in non-admin users cannot access admin routes or admin-only metadata. Full multi-persona QA should still happen later before broader public onboarding.
+
+## Final soft-launch readiness update
+
+- Homepage hero copy has been restored with the MSME challenge headline, supporting explanation, CTAs, and mission line; the network visual should render below the hero copy.
+- Founder-admin verification is now tracked in `docs/founder-admin-verification.md`.
+- The first real starter data path is manual admin UI creation, documented in `docs/first-real-data-plan.md`; fake seeded users and fake MSME records are not required or wanted.
+- Final post-deployment smoke testing is tracked in `docs/final-deployment-smoke-test.md`.
+- Soft launch depends on founder admin verification, Firebase rules/index deployment confirmation, and public/private route smoke testing.
+- Full multi-persona QA remains later work before broader onboarding.

@@ -70,3 +70,13 @@ The current launch path does not require multiple seeded test users or fake pers
 - [ ] Check deployment logs.
 - [ ] Check Firestore permission errors.
 - [ ] Check mobile layout.
+
+## Final soft-launch update
+
+- [ ] Use `docs/founder-admin-verification.md` as the required founder admin verification checklist.
+- [ ] Use `docs/final-deployment-smoke-test.md` as the required post-deployment smoke test.
+- [ ] Use `docs/first-real-data-plan.md` for manual starter content creation.
+- [ ] Confirm the homepage hero shows the restored MSME headline and the network visual below the copy on desktop and mobile.
+- [ ] Do not run fake user seeds or fake MSME data seeds for soft launch.
+- [ ] Create first real content manually from the admin UI after founder admin access is verified.
+- [ ] Defer full multi-persona QA until broader onboarding; for soft launch, verify founder admin, public/incognito, and one real non-admin/member flow.

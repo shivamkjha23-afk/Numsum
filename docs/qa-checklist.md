@@ -78,3 +78,12 @@ Status markers: **Pass**, **Fail**, **Needs Manual Smoke Test**, **Blocked by En
 - Founder/member flow smoke testing is required.
 - Full multi-persona QA is recommended later before broader public onboarding; do not seed fake users or fake personas for the current launch path.
 - Privacy checks remain required: public users cannot access admin routes, logged-in non-admin users cannot access admin routes, private records are not public, and admin metadata is not public.
+
+## Final soft-launch QA additions
+
+- [ ] Verify homepage hero text is visible and the network visual appears below it on desktop.
+- [ ] Verify homepage hero text and network visual stack cleanly on mobile with no horizontal overflow.
+- [ ] Run the founder admin checklist in `docs/founder-admin-verification.md`.
+- [ ] Run the final deployment smoke test in `docs/final-deployment-smoke-test.md`.
+- [ ] Confirm no fake seeded users, fake MSME records, fake success stories, fake testimonials, or fake metrics are used in the current launch path.
+- [ ] Confirm public content follows `docs/public-content-standard.md`.
