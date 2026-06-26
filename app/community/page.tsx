@@ -1,31 +1,23 @@
 import { EmptyState } from "@/components/data-states";
 import { Button, Card } from "@/components/ui";
-import { getCommunityPosts } from "@/lib/repositories/firestore";
+import { listPublicDiscussionThreads } from "@/lib/repositories/firestore";
 
-const filters = [
-  ["latest", "Latest"],
-  ["problem", "Problem Discussions"],
-  ["research", "Research Discussions"],
-  ["competition", "Competition Discussions"],
-  ["knowledge", "Knowledge Discussions"],
-  ["organization", "Organization Discussions"],
-  ["msme", "MSME Discussions"],
-  ["team", "Team Discussions"],
-];
+const categories = ["question", "field_observation", "technical_discussion", "research_discussion", "competition_discussion", "team_coordination", "msme_need", "announcement"];
 
-export default async function Community({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
-  const { filter = "latest" } = await searchParams;
-  const posts = await getCommunityPosts(filter);
-  const trendingWeek = [...posts].sort((a, b) => ((b.views || 0) + (b.comments?.length || 0) + (b.bookmarks?.length || 0)) - ((a.views || 0) + (a.comments?.length || 0) + (a.bookmarks?.length || 0))).slice(0, 5);
-  return (
-    <main className="min-h-screen bg-navy px-6 py-10">
-      <h1 className="font-display text-5xl">Community Ecosystem</h1>
-      <p className="mt-3 max-w-3xl text-white/60">Collaboration layer for Problems, Research, Competitions, Organizations, Teams, MSME cases and Knowledge. Discussions must be linked to a platform object unless marked General Discussion.</p>
-      <div className="mt-6 flex flex-wrap gap-3"><Button href="/community/new">Create Discussion</Button>{filters.map(([key, label]) => <Button key={key} href={`/community?filter=${key}`} variant={filter === key ? "primary" : "secondary"}>{label}</Button>)}</div>
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
-        <section className="grid gap-4">{posts.length ? posts.map((post) => <Card key={post.id}><p className="text-xs uppercase tracking-[.25em] text-blue-300">{post.type || post.associatedType || "general"}</p><a href={`/community/${post.id}`} className="mt-2 block font-display text-2xl hover:text-blue-200">{post.title}</a><p className="mt-2 line-clamp-3 text-white/70">{post.content}</p><p className="mt-3 text-sm text-white/45">Linked: {post.linkedEntityType || post.associatedType || "general"} {post.linkedEntityId || post.associatedId || ""} · {post.comments?.length || 0} comments · {post.bookmarks?.length || 0} bookmarks · {post.views || 0} views</p></Card>) : <Card><EmptyState message="Be among the first contributors" /></Card>}</section>
-        <aside className="space-y-4"><Card><h2 className="font-display text-2xl">Trending This Week</h2>{trendingWeek.map((post) => <a className="mt-3 block text-blue-200" href={`/community/${post.id}`} key={post.id}>{post.title}</a>)}</Card><Card><h2 className="font-display text-2xl">Trending This Month</h2>{trendingWeek.map((post) => <p className="mt-3 text-white/70" key={post.id}>{post.title}</p>)}</Card><Card><h2 className="font-display text-2xl">Search</h2><p className="mt-2 text-sm text-white/60">Use browser search for title, tags, author, organization, linked entity, date and content on this loaded feed.</p></Card></aside>
-      </div>
-    </main>
-  );
+export default async function Community({ searchParams }: { searchParams: Promise<{ category?: string; q?: string }> }) {
+  const { category = "all", q = "" } = await searchParams;
+  const rows = await listPublicDiscussionThreads();
+  const query = q.toLowerCase();
+  const threads = rows.filter((t) => (category === "all" || t.category === category) && (!query || `${t.title} ${t.body} ${(t.tags || []).join(" ")}`.toLowerCase().includes(query)));
+  return <main className="min-h-screen bg-navy px-6 py-10">
+    <section className="mx-auto max-w-6xl">
+      <p className="text-sm uppercase tracking-[.3em] text-blue-300">Community / Discussions</p>
+      <h1 className="mt-3 font-display text-5xl">MSME Problem-Solving Community</h1>
+      <p className="mt-4 max-w-3xl text-white/70">Community discussions help MSMEs, engineers, researchers, students, and contributors discuss practical industrial problems, share field knowledge, ask clarifying questions, and collaborate around challenges.</p>
+      <div className="mt-6 flex flex-wrap gap-3"><Button href="/sign-in">Sign in to participate</Button><Button href="/profile/complete" variant="secondary">Complete your profile to post</Button><Button href="/submit-challenge" variant="secondary">Submit MSME Challenge</Button></div>
+      <Card className="mt-6 border-amber-300/20 bg-amber-300/10"><p className="text-sm text-amber-100">Discussions should be practical, respectful, and focused on MSME problem solving. Do not post confidential MSME data, contact numbers, private drawings, financials, or proprietary process details. Public posts may be moderated. Report inappropriate or confidential content.</p></Card>
+      <form className="mt-6 flex flex-wrap gap-3"><input name="q" defaultValue={q} placeholder="Search public discussions" className="min-w-64 rounded-xl border border-white/10 bg-black/30 p-3" /><select name="category" defaultValue={category} className="rounded-xl border border-white/10 bg-black/30 p-3"><option value="all">All categories</option>{categories.map((c)=><option key={c} value={c}>{c.replaceAll("_", " ")}</option>)}</select><button className="rounded-full bg-white px-5 py-3 font-semibold text-black">Filter</button></form>
+      <section className="mt-8 grid gap-4">{threads.length ? threads.map((thread) => <Card key={thread.id}><div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[.2em] text-blue-300"><span>{thread.category.replaceAll("_", " ")}</span><span>•</span><span>{thread.scopeType}</span><span>•</span><span>{thread.status}</span></div><a href={`/community/${thread.slug}`} className="mt-2 block font-display text-2xl hover:text-blue-200">{thread.title}</a><p className="mt-2 line-clamp-3 text-white/70">{thread.summary || thread.body}</p><p className="mt-3 text-sm text-white/45">By {thread.authorName} · {thread.commentCount || 0} comments · {(thread.tags || []).join(", ") || "No tags"}</p></Card>) : <Card><EmptyState message="Public MSME discussions will appear here after they are reviewed and published." /></Card>}</section>
+    </section>
+  </main>;
 }

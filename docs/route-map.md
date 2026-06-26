@@ -75,7 +75,7 @@ Current route inventory for the NumSum Labs website stabilization pass.
 
 | Route / area | Status | Prompt 8B handling |
 | --- | --- | --- |
-| `/community` and discussion creation | Hidden/future | Not promoted as a completed product; keep guarded/documented until Community/Discussions is intentionally built. |
+| `/community` and discussion creation | Active | Public-safe listing shows only public/open moderated threads; posting requires completed member profile. |
 | `/organizations` | Hidden/future/admin-managed | Public organization directory is not enabled; Firestore organization reads remain admin-only. |
 | Public team directory / team members | Hidden/future | Firestore `team_members` reads remain admin-only until a public team directory is reviewed for privacy. |
 | `/notifications` | Member utility/future polish | Keep behind authenticated user-specific reads; do not expose in public navigation. |
@@ -97,16 +97,23 @@ Current route inventory for the NumSum Labs website stabilization pass.
 - No production links should use old `/admin?tab=...` destinations; admin dashboard cards point to route-based admin pages.
 - Public navigation remains limited to `/`, `/submit-problem`, `/problem-statements`, `/msme-intelligence`, `/research`, `/competitions`, `/pilots`, and `/about`.
 - Public footer remains limited to public-safe routes and excludes admin/member-only pages.
-- Community, Organizations, Notifications, broad team-directory routes, and demo challenge aliases remain hidden/future or deprecated and are not deployment-readiness blockers while unlinked from primary navigation.
+- Organizations, Notifications, broad team-directory routes, and demo challenge aliases remain hidden/future or deprecated and are not deployment-readiness blockers while unlinked from primary navigation.
 - `/dashboard` is the canonical member hub; competition team/submission and contribution pages stay authenticated member routes.
 
 ## Final soft-launch route notes
 
 - `/admin` and the listed admin module routes must be verified with the real founder admin account before soft launch.
 - Public/incognito users and logged-in non-admin users must be blocked from `/admin`.
-- Hidden/future routes for Community/Discussions, Organizations, Notifications, and public team directory remain outside the public launch path.
-- After soft launch readiness, the next product-development step can return to Step 7B Community/Discussions.
+- Hidden/future routes for Organizations, Notifications, and public team directory remain outside the public launch path.
+- After Step 7B, next enhancements can deepen private discussion integrations without adding notifications or social-feed features.
 
 ## User lifecycle and role assignment update
 
 See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.
+
+## Step 7B Community / Discussions Routes
+- `/community` — public-safe community listing for public/open threads only.
+- `/community/[id]` — public thread detail by slug; restricted/private states show a blocked page without leaking content.
+- `/community/new` — completed-member discussion creation flow.
+- `/dashboard/discussions` — member discussion dashboard and empty state.
+- `/admin/community` — admin community moderation dashboard.

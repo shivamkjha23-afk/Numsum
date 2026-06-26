@@ -54,6 +54,11 @@ import type {
   ObjectiveTargetDocument,
   DiscussionComment,
   DiscussionPost,
+  DiscussionThread,
+  DiscussionThreadComment,
+  DiscussionReport,
+  ModerationAction,
+  DiscussionVisibility,
   InternalThread,
   KnowledgeAsset,
   LinkedResource,
@@ -101,6 +106,10 @@ export const COLLECTIONS = {
   problemReviews: "problem_reviews",
   internalThreads: "internal_threads",
   communityPosts: "community_posts",
+  discussionThreads: "discussion_threads",
+  discussionComments: "discussion_comments",
+  discussionReports: "discussion_reports",
+  moderationActions: "moderation_actions",
   researchPosts: "research_posts",
   knowledgeAssets: "knowledge_assets",
   sopDocuments: "sop_documents",
@@ -2643,3 +2652,62 @@ export async function updateUserRoleAndStatus(targetUserId: string, patch: { rol
   await upsertRecord(COLLECTIONS.userRoleRequests, targetUserId, { userId: targetUserId, currentRole: patch.role || target.role || "member", status: "reviewed", reviewedBy: actor.uid, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() });
   await logAudit({ actorId: actor.uid, action: "user_role_status_updated", entityType: "users", entityId: targetUserId, summary: `Updated ${target.email || targetUserId}`, metadata: { beforeRole: target.role, afterRole: patch.role || target.role, status: patch.status || target.status } } as any).catch(() => undefined);
 }
+
+function slugifyDiscussionTitle(title: string) {
+  const base = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  return `${base || "discussion"}-${Date.now().toString(36)}`;
+}
+
+export function canModerateDiscussion(profile?: Pick<UserProfile, "role"> | null) {
+  return profile?.role === "admin" || profile?.role === "super_admin";
+}
+export function canCreateDiscussionThread(profile?: Pick<UserProfile, "profileComplete" | "role"> | null) {
+  return Boolean(profile?.profileComplete || canModerateDiscussion(profile));
+}
+export function canReadTeamDiscussion(thread: Pick<DiscussionThread, "visibility" | "teamMemberIds" | "relatedTeamId">, userId?: string, profile?: Pick<UserProfile, "role"> | null) {
+  return canModerateDiscussion(profile) || Boolean(userId && thread.visibility === "private_team" && (thread.teamMemberIds || []).includes(userId));
+}
+export function canReadProblemDiscussion(thread: Pick<DiscussionThread, "visibility" | "problemOwnerIds" | "assignedUserIds" | "authorId">, userId?: string, profile?: Pick<UserProfile, "role"> | null) {
+  return canModerateDiscussion(profile) || Boolean(userId && thread.visibility === "private_problem" && (thread.authorId === userId || (thread.problemOwnerIds || []).includes(userId) || (thread.assignedUserIds || []).includes(userId)));
+}
+export function canReadDiscussionThread(thread: DiscussionThread, userId?: string, profile?: Pick<UserProfile, "profileComplete" | "role"> | null) {
+  if (canModerateDiscussion(profile)) return true;
+  if (thread.visibility === "public" && thread.status === "open") return true;
+  if (thread.visibility === "members" && profile?.profileComplete && !["hidden", "under_review"].includes(thread.status)) return true;
+  if (thread.visibility === "private_team") return canReadTeamDiscussion(thread, userId, profile) && !["hidden", "under_review"].includes(thread.status);
+  if (thread.visibility === "private_problem") return canReadProblemDiscussion(thread, userId, profile) && !["hidden", "under_review"].includes(thread.status);
+  return false;
+}
+export function canCommentOnThread(thread: DiscussionThread, userId?: string, profile?: Pick<UserProfile, "profileComplete" | "role"> | null) {
+  return Boolean(userId && canCreateDiscussionThread(profile) && canReadDiscussionThread(thread, userId, profile) && (thread.status === "open" || canModerateDiscussion(profile)));
+}
+
+export async function createDiscussionThread(data: Omit<DiscussionThread, "id" | "slug" | "createdAt" | "updatedAt" | "lastActivityAt" | "commentCount" | "participantIds" | "pinned" | "moderationStatus" | "status"> & { status?: DiscussionThread["status"]; slug?: string; }) {
+  const isPublic = data.visibility === "public";
+  const status = data.status || (isPublic ? "under_review" : "open");
+  if (data.visibility === "admin_only") throw new Error("Members cannot create admin-only discussions.");
+  return createRecord<DiscussionThread>(COLLECTIONS.discussionThreads, { ...data, slug: data.slug || slugifyDiscussionTitle(data.title), status, moderationStatus: "clean", commentCount: 0, participantIds: [data.authorId], pinned: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), lastActivityAt: serverTimestamp() } as WithFieldValue<Omit<DiscussionThread, "id">>);
+}
+export async function updateDiscussionThread(id: string, patch: Partial<DiscussionThread>) { return updateRecord(COLLECTIONS.discussionThreads, id, patch as Record<string, unknown>); }
+export const getDiscussionThreadById = cache(async (id: string) => getRecord<DiscussionThread>(COLLECTIONS.discussionThreads, id));
+export const getDiscussionThreadBySlug = cache(async (slug: string) => (await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [where("slug", "==", slug), limit(1)]))[0] || null);
+export const listPublicDiscussionThreads = cache(async () => byCreatedAtDesc(await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [where("visibility", "==", "public"), where("status", "==", "open"), limit(100)])));
+export const listMemberDiscussionThreads = cache(async () => byCreatedAtDesc(await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [where("visibility", "==", "members"), limit(100)])));
+export const listThreadsByScope = cache(async (scopeType: DiscussionThread["scopeType"], scopeId: string) => byCreatedAtDesc(await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [where("scopeType", "==", scopeType), where("scopeId", "==", scopeId), limit(50)])));
+export const listMyDiscussionThreads = cache(async (userId: string) => byCreatedAtDesc(await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [where("participantIds", "array-contains", userId), limit(100)])));
+export const listModerationThreads = cache(async () => byCreatedAtDesc(await listCollection<DiscussionThread>(COLLECTIONS.discussionThreads, [limit(100)])));
+export async function lockThread(id: string, actorId: string) { return updateDiscussionThread(id, { status: "locked", lockedBy: actorId, lockedAt: serverTimestamp() as never }); }
+export async function archiveThread(id: string) { return updateDiscussionThread(id, { status: "archived" }); }
+export async function hideThread(id: string, actorId: string) { return updateDiscussionThread(id, { status: "hidden", hiddenBy: actorId, hiddenAt: serverTimestamp() as never, moderationStatus: "action_taken" }); }
+export async function pinThread(id: string, pinned = true) { return updateDiscussionThread(id, { pinned }); }
+export async function createDiscussionComment(data: Omit<DiscussionThreadComment, "id" | "createdAt" | "updatedAt" | "status" | "moderationStatus" | "helpfulCount" | "reportCount">) { const created = await createRecord<DiscussionThreadComment>(COLLECTIONS.discussionComments, { ...data, status: "visible", moderationStatus: "clean", helpfulCount: 0, reportCount: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<DiscussionThreadComment, "id">>); await updateRecord(COLLECTIONS.discussionThreads, data.threadId, { commentCount: increment(1), participantIds: arrayUnion(data.authorId), lastActivityAt: serverTimestamp() }); return created; }
+export async function updateDiscussionComment(id: string, body: string) { return updateRecord(COLLECTIONS.discussionComments, id, { body, editedAt: serverTimestamp() }); }
+export const listCommentsForThread = cache(async (threadId: string) => byCreatedAtDesc(await listCollection<DiscussionThreadComment>(COLLECTIONS.discussionComments, [where("threadId", "==", threadId), limit(200)])));
+export async function hideComment(id: string) { return updateRecord(COLLECTIONS.discussionComments, id, { status: "hidden", moderationStatus: "action_taken" }); }
+export async function deleteOwnComment(id: string) { return updateRecord(COLLECTIONS.discussionComments, id, { status: "deleted", body: "[deleted]" }); }
+export async function countComments(threadId: string) { return (await getCountFromServer(queryFor(COLLECTIONS.discussionComments, [where("threadId", "==", threadId), where("status", "==", "visible")]))).data().count; }
+export async function reportThread(threadId: string, reportedBy: string, reason: DiscussionReport["reason"], details?: string) { return createRecord<DiscussionReport>(COLLECTIONS.discussionReports, { targetType: "thread", targetId: threadId, threadId, reason, details, reportedBy, status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<DiscussionReport, "id">>); }
+export async function reportComment(threadId: string, commentId: string, reportedBy: string, reason: DiscussionReport["reason"], details?: string) { return createRecord<DiscussionReport>(COLLECTIONS.discussionReports, { targetType: "comment", targetId: commentId, threadId, reason, details, reportedBy, status: "open", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<DiscussionReport, "id">>); }
+export const listOpenDiscussionReports = cache(async () => byCreatedAtDesc(await listCollection<DiscussionReport>(COLLECTIONS.discussionReports, [where("status", "==", "open"), limit(100)])));
+export async function reviewDiscussionReport(id: string, status: DiscussionReport["status"], reviewedBy: string) { return updateRecord(COLLECTIONS.discussionReports, id, { status, reviewedBy, reviewedAt: serverTimestamp() }); }
+export async function createModerationAction(data: Omit<ModerationAction, "id" | "createdAt">) { return createRecord<ModerationAction>(COLLECTIONS.moderationActions, { ...data, createdAt: serverTimestamp() } as WithFieldValue<Omit<ModerationAction, "id">>); }

@@ -1,0 +1,4 @@
+import { AuthGate } from "@/components/auth-gate";
+import { Card, Button } from "@/components/ui";
+
+export default function DashboardDiscussions() { return <AuthGate requireComplete><main className="min-h-screen bg-navy px-6 py-10"><section className="mx-auto max-w-5xl"><h1 className="font-display text-4xl">My Discussions</h1><p className="mt-3 text-white/60">Track discussions you started or joined, including private problem, competition, and team spaces you can access.</p><div className="mt-6"><Button href="/community/new">Create new discussion</Button></div><Card className="mt-6"><p className="text-white/60">You have not started or joined any discussions yet.</p><p className="mt-3 text-sm text-white/45">Private problem discussions are limited to submitters, assigned internal members, and admins. Private team discussions are limited to team members and admins.</p></Card></section></main></AuthGate>; }

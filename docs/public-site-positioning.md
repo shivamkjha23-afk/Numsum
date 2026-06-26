@@ -29,10 +29,13 @@ Homepage metrics use counts from public-safe queries only: public problem statem
 Success and impact content must be public-safe. Public homepage impact cards currently use public pilot records returned by public pilot queries. Success stories and testimonials may be displayed only when visibility is public and status is published/approved. Raw public comments must not appear without approval.
 
 ## Hidden from public navigation
-Community, Organizations, Team Directory, Notifications, admin dashboards, internal review, governance, execution, objective targets, and contribution operations are intentionally hidden from the public navigation and footer.
+Organizations, Team Directory, Notifications, admin dashboards, internal review, governance, execution, objective targets, and contribution operations are intentionally hidden from the public navigation and footer.
 
 ## Final soft-launch homepage standard
 
 The homepage hero should lead with “Turning MSME Challenges into Practical Industrial Solutions,” the MSME-first subheadline, the primary **Submit MSME Challenge** CTA, and secondary exploration CTAs. The network visual should appear below the copy, not side-by-side, to preserve readability and avoid overlap on desktop or mobile.
 
 Public pages should continue using founding-stage language unless real approved public records exist. Do not imply large existing impact, testimonials, or success metrics without verified public-safe data.
+
+## Community positioning
+The public navigation includes Community as an MSME problem-solving discussion area. It is not a generic social feed and does not expose private member, team, problem, submission, or moderation data.

@@ -65,3 +65,13 @@ Prompt 8B-2 adds a controlled migration path for historical sensitive fields. Co
 ## User lifecycle and role assignment update
 
 See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.
+
+## Community Discussions Access Matrix
+| Resource | Public | Incomplete user | Completed member | Problem submitter/assigned | Team member | Admin/Super-admin |
+| --- | --- | --- | --- | --- | --- | --- |
+| Public open threads | Read | Read | Read/comment | Read/comment | Read/comment | Manage |
+| Member threads | No | No | Read/comment | Read/comment | Read/comment | Manage |
+| Private problem threads | No | No | No unless authorized | Read/comment | No unless authorized | Manage |
+| Private team threads | No | No | No unless team member | No unless team member | Read/comment | Manage |
+| Reports | No | No | Create/read own | Create/read own | Create/read own | Manage all |
+| Moderation actions | No | No | No | No | No | Manage all |
