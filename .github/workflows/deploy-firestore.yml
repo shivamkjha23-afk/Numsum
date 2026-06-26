@@ -28,8 +28,6 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-      GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
-      GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
       DEPLOY_TARGET: ${{ github.event.inputs.deploy_target || 'rules,indexes' }}
 
     steps:
@@ -75,6 +73,22 @@ jobs:
           set -euo pipefail
 
           PROJECT_ID="$(printf '%s' "$FIREBASE_PROJECT_ID" | tr -d '\r\n' | xargs)"
+          SERVICE_ACCOUNT_FILE="${RUNNER_TEMP}/firebase-service-account.json"
+
+          if [ -z "$PROJECT_ID" ]; then
+            echo "FIREBASE_PROJECT_ID repository variable is required." >&2
+            exit 1
+          fi
+
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON repository secret is required." >&2
+            exit 1
+          fi
+
+          trap 'rm -f "$SERVICE_ACCOUNT_FILE"' EXIT
+
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$SERVICE_ACCOUNT_FILE"
+          export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_FILE"
 
           case "$DEPLOY_TARGET" in
             rules,indexes)
