@@ -27,3 +27,9 @@ No unresolved critical deployment blockers are known after Prompt 8D. Typecheck,
 | Testimonial submission workflow | Display only approved/public stories until a moderated submission flow is built. |
 | Emulator test expansion | Add more seeded rule cases as modules stabilize. |
 | Historical migration for future real data | Revisit when real user data exists or before production launch. |
+
+## Production readiness notes
+
+- Production Firebase rules and indexes must be deployed manually; CI validates rules but does not deploy.
+- The baseline seed script is manual-only and flag-gated. It must not be run as part of CI.
+- Public pages are expected to show founding-stage empty states until real approved data exists; do not publish fake impact metrics or success stories.

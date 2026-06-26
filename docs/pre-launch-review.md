@@ -36,3 +36,9 @@ Primary checked routes: `/`, `/about`, `/submit-problem`, `/problem-statements`,
 ## Recommended next step
 
 Create a controlled seeded QA dataset and run the persona checklist in `docs/qa-checklist.md` in a browser against the intended staging Firebase project.
+
+## Prompt 9A production readiness additions
+
+- Environment setup, Firebase production setup, Firestore indexes, admin bootstrap, baseline seed plan, CI/CD, Vercel deployment, and launch checklist are documented.
+- Production secrets remain external to the repository.
+- Baseline seed data is limited to operational placeholders and explicitly excludes fake impact stories or fake MSME claims.
