@@ -7,7 +7,7 @@ const COLLECTIONS = { systemDocuments: "system_documents", settings: "settings",
 const INIT_VERSION = 2;
 const INIT_STATUS_ID = "platform_initialization";
 const systemDocs = {
-  platform: { name: "Numsum Platform", status: "active", modules: PLATFORM_MODULES },
+  platform: { name: "NumSum Labs Platform", status: "active", modules: PLATFORM_MODULES },
   navigation: { primary: ["problem-statements", "research", "knowledge", "competitions", "msme-intelligence"], admin: ["dashboard", "inbox", "forms", "users", "system-health"] },
   community: { enabled: true, features: ["comments", "replies", "likes", "bookmarks", "reports"] },
   relationships: { enabled: true, supported: ["problem_statement", "research", "competition", "knowledge_asset", "organization"] },

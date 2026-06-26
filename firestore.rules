@@ -9,9 +9,11 @@ service cloud.firestore {
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
-    function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['public', 'published', 'active', 'completed', 'approved', 'upcoming', 'open', 'closed', 'results_declared']; }
-    function incomingPublicDoc() { return request.resource.data.visibility == 'public' && request.resource.data.status in ['public', 'published', 'active', 'completed', 'approved']; }
-    function memberVisible() { return signedIn() && resource.data.visibility == 'member_only'; }
+    // Public reads require explicit public visibility and a safe externally publishable status.
+    function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
+    function incomingPublicDoc() { return request.resource.data.visibility == 'public' && request.resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
+    // Member-only records must still be in a safe lifecycle state; drafts/rejected/archived stay private.
+    function memberVisible() { return signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared', 'active']; }
     function hasExistingList(field) { return resource.data.keys().hasAny([field]) && request.auth.uid in resource.data[field]; }
     function hasIncomingList(field) { return request.resource.data.keys().hasAny([field]) && request.auth.uid in request.resource.data[field]; }
     function teamVisible() { return signedIn() && resource.data.visibility == 'team_only' && (hasExistingList('teamMemberIds') || hasExistingList('members') || hasExistingList('ownerIds')); }
@@ -34,8 +36,9 @@ service cloud.firestore {
     function linkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(resource.data.problemStatementId)); }
     function incomingLinkedProblem() { return get(/databases/$(database)/documents/problem_statements/$(request.resource.data.problemStatementId)); }
     function linkedProblemSubmitter() { return signedIn() && exists(/databases/$(database)/documents/problem_statements/$(resource.data.problemStatementId)) && (linkedProblem().data.createdBy == request.auth.uid || linkedProblem().data.submittedByUserId == request.auth.uid || linkedProblem().data.submitterId == request.auth.uid || request.auth.uid in linkedProblem().data.ownerIds); }
-    function linkedOnboardingVisible() { return platformAdmin() || (resource.data.visibility == 'public') || (signedIn() && resource.data.visibility == 'member_only') || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public']); }
-    function linkedWorkspaceVisible() { return platformAdmin() || resource.data.visibility == 'public' || (signedIn() && resource.data.visibility == 'member_only') || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public']); }
+    function linkedOnboardingVisible() { return platformAdmin() || isPublicDoc() || memberVisible() || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public'] && resource.data.status in ['submitted','needs_more_info','published','approved','completed','active','open','upcoming','closed','results_declared']); }
+    // Linked workspace reads follow the linked problem owner plus safe visibility/status checks.
+    function linkedWorkspaceVisible() { return platformAdmin() || isPublicDoc() || memberVisible() || (linkedProblemSubmitter() && resource.data.visibility in ['submitter_only', 'member_only', 'public'] && resource.data.status in ['submitted','needs_more_info','published','approved','completed','active','open','upcoming','closed','results_declared']); }
     function safeWorkspaceCreate() { return platformAdmin() && request.resource.data.visibility in ['admin_only', 'submitter_only', 'member_only', 'public']; }
 
     match /users/{uid} {
@@ -63,16 +66,20 @@ service cloud.firestore {
     match /admin_applications/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin(); }
 
     match /problem_statements/{id} {
+      // Admins can manage all problem records. Public reads are restricted to published public summaries.
+      // Submitters can read their own private submissions and edit only safe intake fields before review closes.
       allow read: if platformAdmin()
         || (resource.data.visibility == 'public' && resource.data.status == 'published')
-        || (signedIn() && resource.data.visibility == 'member_only')
+        || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['approved','published','active'])
         || submitterVisible();
       allow create: if platformAdmin() || problemSubmitterCreate();
       allow update: if platformAdmin()
-        || (submitterVisible() && submitterEditableStatus() && submitterProblemPatchOnly() && request.resource.data.visibility == resource.data.visibility && request.resource.data.status == resource.data.status);
-      allow read: if canReadVisible();
-      allow create: if platformAdmin() || (signedIn() && ownsIncoming() && request.resource.data.visibility in ['submitter_only', 'admin_only']);
-      allow update: if platformAdmin() || (ownsExisting() && resource.data.visibility == 'submitter_only' && request.resource.data.visibility == resource.data.visibility);
+        || (submitterVisible()
+          && submitterEditableStatus()
+          && submitterProblemPatchOnly()
+          && request.resource.data.visibility == resource.data.visibility
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.assignedAdminId == resource.data.assignedAdminId);
       allow delete: if platformAdmin();
     }
     match /challenges/{document=**} { allow read: if canReadVisible(); allow write: if platformAdmin(); }
@@ -108,15 +115,15 @@ service cloud.firestore {
     match /community_analytics/{id} { allow read: if platformAdmin(); allow create, update: if signedIn(); allow delete: if platformAdmin(); }
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
 
-    match /competitions/{id} { allow read: if platformAdmin() || isPublicDoc() || (signedIn() && resource.data.visibility == 'member_only'); allow create, update, delete: if platformAdmin(); }
-    match /competition_teams/{id} { allow read: if platformAdmin() || ownsExisting() || (signedIn() && resource.data.visibility == 'member_only'); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
+    match /competitions/{id} { allow read: if platformAdmin() || isPublicDoc() || memberVisible(); allow create, update, delete: if platformAdmin(); }
+    match /competition_teams/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
     match /competition_participations/{id} { allow read: if platformAdmin() || ownsExisting() || (signedIn() && resource.data.participantUserId == request.auth.uid); allow create: if signedIn() && request.resource.data.participantUserId == request.auth.uid; allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin(); }
     match /competition_submissions/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update: if platformAdmin() || (ownsExisting() && resource.data.status == 'draft'); allow delete: if platformAdmin(); }
     match /competition_evaluations/{id} { allow read, write: if platformAdmin(); }
     match /competition_results/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status == 'published') || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['declared','published']); allow write: if platformAdmin(); }
 
-    match /organizations/{id} { allow read: if true; allow create: if signedIn(); allow update, delete: if platformAdmin(); }
-    match /team_members/{id} { allow read: if true; allow create, update, delete: if platformAdmin(); }
+    match /organizations/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
+    match /team_members/{id} { allow read: if platformAdmin(); allow create, update, delete: if platformAdmin(); }
     match /questionnaire_templates/{id} { allow read, create, update, delete: if platformAdmin(); }
     match /constitution_documents/{id} { allow read, write: if platformAdmin(); }
     match /objective_target_documents/{id} { allow read, write: if platformAdmin(); }
@@ -141,7 +148,7 @@ service cloud.firestore {
     function internalContributionVisible() { return isMember() && resource.data.visibility == 'internal_member'; }
     function claimEditableByOwner() { return signedIn() && resource.data.contributorUserId == request.auth.uid && resource.data.status in ['submitted','needs_revision']; }
     function claimSafeOwnerPatch() { return request.resource.data.contributorUserId == resource.data.contributorUserId && request.resource.data.status == resource.data.status && !request.resource.data.keys().hasAny(['approvedScore','reviewerId','reviewerName','reviewedAt']); }
-    match /contribution_records/{id} { allow read: if platformAdmin() || contributionOwner() || internalContributionVisible(); allow create, update, delete: if platformAdmin(); }
+    match /contribution_records/{id} { allow read: if platformAdmin() || contributionOwner(); allow create, update, delete: if platformAdmin(); }
     match /contribution_score_rules/{id} { allow read: if platformAdmin() || (isMember() && resource.data.active == true); allow create, update, delete: if platformAdmin(); }
     match /contribution_review_cycles/{id} { allow read, write: if platformAdmin(); }
     match /contributor_review_summaries/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.contributorUserId == request.auth.uid && resource.data.finalStatus == 'finalized'); allow create, update, delete: if platformAdmin(); }
