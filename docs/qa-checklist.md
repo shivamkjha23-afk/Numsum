@@ -100,3 +100,22 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 - Private team discussions are limited to team members/admin users.
 - Admin can access moderation, view reports, and hide/lock/archive/review content.
 - Firestore denies public reads of reports, moderation actions, private discussions, and user lists.
+
+## 2026-06-26 manual checks to run before release
+1. New Google/email signup creates `users/{uid}`.
+2. New user gets roles/default role `member`.
+3. New incomplete user redirects to `/profile/complete`.
+4. Completed user is not repeatedly redirected.
+5. Existing admin keeps `admin` / `super_admin` role.
+6. Completed logged-in user at `/community` does not see sign-in CTA.
+7. Completed logged-in user at `/community` does not see complete-profile CTA.
+8. Public `/competitions` has no permission error.
+9. Member `/competitions` has no permission error.
+10. Admin `/competitions` has no permission error.
+11. Admin competition management remains under `/admin/competitions`.
+12. User can create role request.
+13. Admin can approve/reject role request.
+14. Approved role request updates `UserProfile.role`.
+15. Pending role request does not grant access.
+16. Admin navigation is grouped and usable.
+17. Home hero title/typewriter works on desktop and mobile.

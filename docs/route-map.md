@@ -117,3 +117,10 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 - `/community/new` — completed-member discussion creation flow.
 - `/dashboard/discussions` — member discussion dashboard and empty state.
 - `/admin/community` — admin community moderation dashboard.
+
+## 2026-06-26 route behavior updates
+- `/profile/complete` is the mandatory redirect target for newly signed-in users whose `users/{uid}.profileComplete` is false. Completed users are not repeatedly redirected.
+- `/community` now separates visitor, incomplete-user, complete-member, and admin moderation states from the auth/profile source of truth.
+- `/competitions` remains public and uses public-safe competition reads only. Admin competition management remains under `/admin/competitions`.
+- Admin navigation is grouped into Platform, MSME Problem Pipeline, Knowledge & Research, Pilots & Impact, Competitions, Governance & Objectives, Operations, and People & Access.
+- Home hero uses the restored rotating title phrases and preserves the Submit MSME Challenge, Explore MSME Challenges, and Explore Knowledge & Research CTAs.

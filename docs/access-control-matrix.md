@@ -75,3 +75,10 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 | Private team threads | No | No | No unless team member | No unless team member | Read/comment | Manage |
 | Reports | No | No | Create/read own | Create/read own | Create/read own | Manage all |
 | Moderation actions | No | No | No | No | No | Manage all |
+
+## 2026-06-26 access-control clarification
+- First login creates `users/{uid}` when missing, grants only the default `member` role, and marks incomplete profiles with `profileComplete: false` until mandatory profile fields are saved.
+- `UserProfile.role` is the source of truth for granted access. `user_role_requests` / `role_requests` are workflow records only; pending requests do not grant permissions.
+- Members cannot self-grant elevated, admin, or internal roles. Elevated roles (`submitter`, `contributor`, `researcher`, `msme_representative`, `internal_member`) require admin approval; `admin` and `super_admin` remain admin-managed.
+- Community reads public discussions for visitors. Posting/commenting requires a signed-in complete profile or admin access.
+- Public `/competitions` reads only public competition records; submissions, evaluations, ranks, scores, and admin metadata remain outside public queries.

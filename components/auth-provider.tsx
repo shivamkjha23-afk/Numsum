@@ -1,6 +1,7 @@
 "use client";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthModal } from "@/components/auth-modal";
 import { auth } from "@/lib/firebase";
 import { ensureUserProfile, isProfileComplete } from "@/lib/repositories/firestore";
@@ -16,6 +17,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingAuth, setPendingAuth] = useState<PendingAuth>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => onAuthStateChanged(auth, async (next) => {
     setLoading(true);
@@ -37,6 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSuccess = useCallback(async () => { const resume = pendingAuth?.onSuccess; setPendingAuth(null); await resume?.(); }, [pendingAuth]);
   const bootstrapAdminDetected = (user?.email || "").trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
   const profileComplete = isProfileComplete(profile);
+  useEffect(() => {
+    if (loading || !user || !profile || profileComplete) return;
+    if (profile.role === "admin" || profile.role === "super_admin") return;
+    if (pathname?.startsWith("/profile/complete")) return;
+    const current = `${pathname || "/"}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
+    router.replace(`/profile/complete?returnTo=${encodeURIComponent(current)}`);
+  }, [loading, user, profile, profileComplete, pathname, searchParams, router]);
   const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile }), [user, profile, loading, profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
