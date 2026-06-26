@@ -82,3 +82,19 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 - Members cannot self-grant elevated, admin, or internal roles. Elevated roles (`submitter`, `contributor`, `researcher`, `msme_representative`, `internal_member`) require admin approval; `admin` and `super_admin` remain admin-managed.
 - Community reads public discussions for visitors. Posting/commenting requires a signed-in complete profile or admin access.
 - Public `/competitions` reads only public competition records; submissions, evaluations, ranks, scores, and admin metadata remain outside public queries.
+
+## 2026-06-26 verification pass — requested flow status
+
+| Requirement | Status | Evidence / remaining verification |
+|---|---|---|
+| New user gets default member access without approval | fixed; needs manual verification | Rules permit safe self-profile creation and role requests are only for elevated roles. Confirm with a new Auth user in staging. |
+| Existing admin role preserved | fixed; needs manual verification | Self updates cannot change `role`; admin role changes are platform-admin controlled. Confirm founder admin remains admin/super-admin after profile edits. |
+| Incomplete users redirected before member workflows | fixed; needs manual verification | `isProfileCompleteUser()` gates member-created private workflows. Browser redirect behavior needs a real incomplete user. |
+| Public community reads only public/open discussions | fixed; needs manual verification | Discussion read helpers allow public/open only for visitors. Verify with public and private seeded threads. |
+| Completed members can participate in community | fixed; needs manual verification | Discussion/comment creates require `isProfileCompleteUser()`. Verify create/comment UI with a completed member. |
+| Admin can moderate community | fixed; needs manual verification | Reports/moderation actions are platform-admin protected. Verify `/admin/community` with seeded reports. |
+| Public competitions avoid private submissions/evaluations/admin metadata | fixed | Public reads are limited to `competitions` records that are public-visible; `competition_submissions`, `competition_evaluations`, and `competition_submission_admin_metadata` remain protected. |
+| Member/admin competition pages load without permission errors | needs manual verification | Rules allow member-visible competition reads and admin reads; browser QA must verify query shape/index behavior. |
+| Pending role requests grant no permission | fixed | Permissions read `users/{uid}.role`; request documents are workflow records only. |
+| Approval/rejection behavior updates only intended role state | needs manual verification | Admin approval/rejection needs UI smoke test against `UserProfile.role`. |
+| Admin metadata stays admin-only | fixed | Companion metadata and evaluation collections remain platform-admin only. |

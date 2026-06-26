@@ -65,7 +65,7 @@ Development reset guidance is documented in `docs/dev-data-reset.md`; clean rese
 
 ## Environment blocker observed in this workspace
 
-During this update, `npm install` and `npm run test:rules` could not complete in the current container because the npm registry returned `403 Forbidden` for `@firebase/rules-unit-testing`, and the local `node_modules/.bin/firebase` executable was therefore unavailable. The repository still declares the required dependencies and CI workflow steps so a normal environment with registry access can install and run the emulator tests.
+During the 2026-06-26 verification pass, `npm run test:rules` started the Firebase CLI and attempted to start the Firestore emulator, but the emulator artifact download failed: `cloud-firestore-emulator-v1.19.8.jar` returned HTTP 403. Treat this as a local environment/artifact-access blocker and rerun the rules suite in CI or another environment with emulator download access.
 
 ## Production deployment commands
 

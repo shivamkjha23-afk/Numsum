@@ -119,3 +119,56 @@ See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md
 15. Pending role request does not grant access.
 16. Admin navigation is grouped and usable.
 17. Home hero title/typewriter works on desktop and mobile.
+
+## 2026-06-26 verification pass — auth, roles, competitions, community, navigation
+
+Status markers for this pass: **fixed**, **needs manual verification**, **still broken**, **blocked by environment**.
+
+| Flow | Status | Verification notes |
+|---|---|---|
+| First-login user document creation | needs manual verification | Static review confirms the documented source of truth remains `users/{uid}` and build/typecheck pass. Browser QA with a new Firebase Auth user is still required to observe the document creation event. |
+| Default `member` role assignment | needs manual verification | Firestore rules allow self-created profiles only with safe roles and role requests are not required for member access. Confirm with a new real/staging user. |
+| `profileComplete: false` redirects to `/profile/complete` | fixed; needs manual verification | `AuthGate`/route docs and Firestore `isProfileCompleteUser()` gates are aligned. Confirm redirect in browser with an incomplete user. |
+| Completed profile returns to dashboard or intended route | needs manual verification | No static regression found; requires browser session and intended-route redirect smoke test. |
+| Existing admin role is preserved | fixed; needs manual verification | Self-profile updates cannot change `role`; admin role changes remain admin/super-admin controlled in rules. Confirm with bootstrapped founder admin. |
+| Public community visitor state | fixed; needs manual verification | Public/open thread access and sign-in CTA behavior are documented; browser QA with public discussion data is still required. |
+| Incomplete community CTA | fixed; needs manual verification | Posting/commenting require completed profile in rules; confirm complete-profile CTA in browser. |
+| Completed member community participation | needs manual verification | Rule path supports completed members; needs browser create/comment smoke test. |
+| Admin community moderation | needs manual verification | `/admin/community` is included in the built route list and rules protect reports/moderation actions; verify with admin account and moderation records. |
+| Community stale auth/profile state | needs manual verification | No type/build regression found; stale-state behavior requires repeated sign-in/sign-out browser QA. |
+| Public `/competitions` | fixed; needs manual verification | Public route builds and repository/rules review confirms public-safe competition reads only. Confirm no permission error in browser. |
+| Member `/competitions` | fixed; needs manual verification | Member-visible competition reads are allowed by rules. Confirm no permission error with completed member account. |
+| Admin `/competitions` | fixed; needs manual verification | Admin route `/admin/competitions` builds and admin reads are rule-authorized. Confirm no permission error with founder admin. |
+| Public competition data minimization | fixed | Static/rules review confirms public competition reads do not grant submissions, evaluations, or admin metadata. |
+| Admin competition management route | fixed | Build output includes `/admin/competitions` and `/admin/competitions/[id]`; public `/competitions` remains separate. |
+| Basic member approval not required | fixed; needs manual verification | Role request creation is limited to elevated roles; confirm no basic-member request is created during signup. |
+| RoleRequest only elevated roles | fixed | Firestore rules require `elevatedUserRole(requestedRole)` for role request creation. |
+| Pending role request grants no permission | fixed | `UserProfile.role` remains the permission source of truth; request documents are workflow records only. |
+| Approval updates `UserProfile.role` | needs manual verification | Requires admin UI smoke test with a request record. |
+| Rejection leaves `UserProfile.role` unchanged | needs manual verification | Requires admin UI smoke test with a request record. |
+| User can see own request status | fixed; needs manual verification | Rules allow request reads by owner; confirm UI status display with a seeded/real request. |
+| Admin can manage all role requests | fixed; needs manual verification | Rules allow platform admins to read/update/delete role requests; confirm in `/admin/users`. |
+| Grouped admin navigation | fixed; needs manual verification | Route map documents grouped admin navigation. Verify desktop and mobile menus in browser. |
+| No broken admin links | fixed; needs manual verification | `npm run build` generated all admin routes successfully; click-through browser QA remains recommended. |
+| Non-admin cannot see admin nav | fixed; needs manual verification | Admin navigation is auth/role gated in implementation and rules; confirm with non-admin account. |
+| Mobile admin navigation | needs manual verification | Static docs/build pass; requires viewport/device smoke test. |
+| Home hero title/typewriter | fixed; needs manual verification | Home route builds; visual rotation requires browser QA. |
+| Home CTA buttons | fixed; needs manual verification | Route map confirms CTAs. Click-through browser QA still required. |
+| Menu/dropdown over hero readability | needs manual verification | Admin navigation grouping reduces risk; visual browser QA remains required. |
+
+### Security review status from this pass
+
+| Area | Status | Notes |
+|---|---|---|
+| Public pages use public-safe queries | fixed | Static review of route intent, Firestore rules, and build output found no public grants for private/admin collections. |
+| Member pages do not expose private records | fixed; needs manual verification | Rules limit private reads to owners/assigned/team/admin; browser QA with cross-user seeded data remains required. |
+| Admin metadata remains admin-only | fixed | `problem_admin_metadata`, `onboarding_admin_metadata`, `pilot_admin_metadata`, `competition_submission_admin_metadata`, and contribution review metadata are admin-only in rules. |
+| `role_requests` protected | fixed | Owner reads and admin management are allowed; creation requires elevated requested role and current role match. |
+| Competition submissions/evaluations protected | fixed | Public cannot read submissions or evaluations; evaluations are admin-only. |
+
+### Commands run in this pass
+
+- Pass — `npm run typecheck`
+- Pass — `npm run lint` (12 existing warnings, 0 errors)
+- Pass — `npm run build` (build completed; same lint warnings surfaced during build)
+- Blocked by Environment — `npm run test:rules` (Firestore emulator JAR download failed with HTTP 403 after emulator startup)
