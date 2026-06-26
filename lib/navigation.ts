@@ -10,7 +10,7 @@ export const navGroups: NavGroup[] = [
     { label: "Competitions", links: [["Competitions", "/admin/competitions"]] },
     { label: "Governance & Objectives", links: [["Governance", "/admin/governance"], ["Governance Documents", "/admin/governance/documents"], ["Amendments", "/admin/governance/amendments"], ["Objective Targets", "/admin/objectives"]] },
     { label: "Operations", links: [["Execution OS", "/admin/execution"], ["Meetings", "/admin/meetings"], ["Contributions", "/admin/contributions"], ["Contribution Reviews", "/admin/contributions/review-cycles"]] },
-    { label: "People & Access", links: [["Users", "/admin/users"], ["Role Requests", "/admin/users"], ["Community Moderation", "/admin/community"]] },
+    { label: "People & Access", links: [["Users & Roles", "/admin/users"], ["Community Moderation", "/admin/community"]] },
   ] },
 ];
 export function getVisibleNavLinks(isAdmin: boolean) {

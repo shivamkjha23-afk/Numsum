@@ -9,6 +9,7 @@ service cloud.firestore {
     function isAdmin() { return userRole() in ['admin', 'super_admin']; }
     function safeUserRole(role) { return role in ['member','submitter','contributor','researcher','msme_representative','internal_member','reviewer','moderator','organization','pending_admin','admin','super_admin']; }
     function elevatedUserRole(role) { return role in ['submitter','contributor','researcher','msme_representative','internal_member']; }
+    function newMemberRoleReview() { return signedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.requestedRole == 'member' && request.resource.data.currentRole == 'member' && request.resource.data.status == 'pending_review'; }
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
@@ -80,8 +81,8 @@ service cloud.firestore {
     }
 
     match /admin_inbox/{id} { allow read, update, delete: if platformAdmin(); allow create: if signedIn(); }
-    match /user_role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
-    match /role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
+    match /user_role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || newMemberRoleReview() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
+    match /role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if platformAdmin() || newMemberRoleReview() || (signedIn() && request.resource.data.userId == request.auth.uid && elevatedUserRole(request.resource.data.requestedRole) && request.resource.data.currentRole == userRole() && request.resource.data.status == 'pending'); allow update: if platformAdmin(); allow delete: if platformAdmin(); }
 
     match /admin_applications/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if signedIn() && ownsIncoming(); allow update, delete: if platformAdmin(); }
 
