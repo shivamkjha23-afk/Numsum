@@ -87,3 +87,7 @@ Status markers: **Pass**, **Fail**, **Needs Manual Smoke Test**, **Blocked by En
 - [ ] Run the final deployment smoke test in `docs/final-deployment-smoke-test.md`.
 - [ ] Confirm no fake seeded users, fake MSME records, fake success stories, fake testimonials, or fake metrics are used in the current launch path.
 - [ ] Confirm public content follows `docs/public-content-standard.md`.
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

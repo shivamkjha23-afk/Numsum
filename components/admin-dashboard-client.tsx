@@ -144,6 +144,7 @@ const moduleCards = [
   ["Governance / Objectives", "/admin/governance", "Admin-only governance and targets."],
   ["Execution", "/admin/execution", "Coordinate internal work items."],
   ["Contributions", "/admin/contributions", "Review contribution records and scoring."],
+  ["Users & Roles", "/admin/users", "Assign roles and review new member signups."],
   ["Security / System Health", "/admin/system-health", "Inspect rules, diagnostics, and platform health."],
 ] as const;
 

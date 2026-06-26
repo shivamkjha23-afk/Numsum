@@ -62,6 +62,7 @@ export interface UserProfile extends FirestoreEntity {
   role?: Role;
   status?: string;
   profileComplete?: boolean;
+  provider?: "google" | "password" | "unknown" | string;
   profileCompletedAt?: DateLike;
   profileType?: UserProfileType;
   city?: string;

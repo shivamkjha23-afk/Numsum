@@ -40,3 +40,7 @@ No unresolved critical deployment blockers are known after the final soft-launch
 - Founder-admin verification and final deployment smoke testing are now explicit launch gates.
 - First real data should be created manually from the admin UI; fake seeded users, fake MSME data, fake testimonials, fake success stories, and fake metrics remain prohibited.
 - Full multi-persona QA is deferred until broader onboarding, after soft-launch access boundaries are verified.
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

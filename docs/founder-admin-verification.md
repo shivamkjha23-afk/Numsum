@@ -35,3 +35,7 @@ Do not check an item until it has been verified on the deployed site or target F
 
 - Use the real founder account only. Do not create fake seeded users for this launch path.
 - If any admin route fails for the founder, pause soft launch until the profile, Firestore rules, indexes, and deployment environment are checked.
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

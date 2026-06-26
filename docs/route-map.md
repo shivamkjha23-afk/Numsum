@@ -106,3 +106,7 @@ Current route inventory for the NumSum Labs website stabilization pass.
 - Public/incognito users and logged-in non-admin users must be blocked from `/admin`.
 - Hidden/future routes for Community/Discussions, Organizations, Notifications, and public team directory remain outside the public launch path.
 - After soft launch readiness, the next product-development step can return to Step 7B Community/Discussions.
+
+## User lifecycle and role assignment update
+
+See [User Lifecycle and Role Management](./user-lifecycle-and-role-management.md) for the canonical signup profile creation flow, profile completion redirect behavior, `user_role_requests` review queue, `/admin/users` role assignment page, and super-admin safety rules.

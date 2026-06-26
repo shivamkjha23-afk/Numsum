@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const handleSuccess = useCallback(async () => { const resume = pendingAuth?.onSuccess; setPendingAuth(null); await resume?.(); }, [pendingAuth]);
   const bootstrapAdminDetected = (user?.email || "").trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
-  const profileComplete = isProfileComplete(profile) || profile?.role === "admin" || profile?.role === "super_admin";
+  const profileComplete = isProfileComplete(profile);
   const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile }), [user, profile, loading, profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
