@@ -2,6 +2,23 @@ name: Deploy Firestore
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: Firestore resources to deploy
+        required: true
+        default: rules,indexes
+        type: choice
+        options:
+          - rules,indexes
+          - rules
+          - indexes
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - firebase.json
+      - .github/workflows/deploy-firestore.yml
 
 jobs:
   deploy-firestore:
@@ -9,8 +26,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FIREBASE_PROJECT_ID: "${{ vars.FIREBASE_PROJECT_ID }}"
-      FIREBASE_SERVICE_ACCOUNT_JSON: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}"
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_CLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+      GCLOUD_PROJECT: ${{ vars.FIREBASE_PROJECT_ID }}
+      DEPLOY_TARGET: ${{ github.event.inputs.deploy_target || 'rules,indexes' }}
 
     steps:
       - name: Checkout repository
@@ -21,6 +41,31 @@ jobs:
         with:
           node-version: 22
 
+      - name: Validate Firebase configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_ID="$(printf '%s' "$FIREBASE_PROJECT_ID" | tr -d '\r\n' | xargs)"
+
+          if [ -z "$PROJECT_ID" ]; then
+            echo "FIREBASE_PROJECT_ID repository variable is required." >&2
+            exit 1
+          fi
+
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON repository secret is required." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          create_credentials_file: true
+          export_environment_variables: true
+
       - name: Install Firebase CLI
         run: npm install --no-audit --no-fund --no-save firebase-tools
 
@@ -30,11 +75,21 @@ jobs:
           set -euo pipefail
 
           PROJECT_ID="$(printf '%s' "$FIREBASE_PROJECT_ID" | tr -d '\r\n' | xargs)"
-          SERVICE_ACCOUNT_FILE="${RUNNER_TEMP}/firebase-service-account.json"
 
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$SERVICE_ACCOUNT_FILE"
-          export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_FILE"
+          case "$DEPLOY_TARGET" in
+            rules,indexes)
+              FIREBASE_ONLY="firestore:rules,firestore:indexes"
+              ;;
+            rules)
+              FIREBASE_ONLY="firestore:rules"
+              ;;
+            indexes)
+              FIREBASE_ONLY="firestore:indexes"
+              ;;
+            *)
+              echo "Unsupported deploy target: $DEPLOY_TARGET" >&2
+              exit 1
+              ;;
+          esac
 
-          npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$PROJECT_ID" --non-interactive
-
-          rm -f "$SERVICE_ACCOUNT_FILE"
+          npx firebase-tools deploy --only "$FIREBASE_ONLY" --project "$PROJECT_ID" --non-interactive
