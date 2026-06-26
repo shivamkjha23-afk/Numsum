@@ -562,8 +562,13 @@ export async function notifyAdmins(
   });
 }
 
+const PUBLIC_COMPETITION_STATUSES = ["published", "upcoming", "open", "closed", "results_declared"] as const;
+
 function publicConstraints(publicOnly = true) {
   return publicOnly ? [where("visibility", "==", "public"), where("status", "==", "published")] : [];
+}
+function publicCompetitionConstraints() {
+  return [where("visibility", "==", "public"), where("status", "in", [...PUBLIC_COMPETITION_STATUSES])];
 }
 function byCreatedAtDesc<T extends { createdAt?: unknown }>(rows: T[]) {
   return [...rows].sort((a, b) =>
@@ -813,7 +818,14 @@ export const getCompetitions = cache(async (publicOnly = true) => {
 
 export const getCompetitionBySlug = cache(async (slug: string) => (await listCollection<Competition>(COLLECTIONS.competitions, [where("slug", "==", slug), limit(1)]))[0] || null);
 export const getAdminCompetitions = cache(async () => getCompetitions(false));
-export const getPublicCompetitions = cache(async () => (await listCollection<Competition>(COLLECTIONS.competitions, [where("visibility", "==", "public"), limit(100)])).filter((c) => ["published", "upcoming", "open", "closed", "results_declared"].includes(c.status || "")));
+export const getPublicCompetitions = cache(async () =>
+  byCreatedAtDesc(
+    await listCollection<Competition>(COLLECTIONS.competitions, [
+      ...publicCompetitionConstraints(),
+      limit(100),
+    ]),
+  ),
+);
 export const getPublicCompetitionsSafe = getPublicCompetitions;
 export const getMemberCompetitions = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [limit(100)]));
 export async function publishCompetition(competition: Competition, userId: string) { await updateCompetitionStatus(competition, userId, "open", "public"); const problemId = competition.linkedProblemStatementId || competition.sourceProblemId; if (problemId) await createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, { problemStatementId: problemId, eventType: "competition_published" as never, title: `Competition published: ${competition.title}`, actorUserId: userId, visibility: "member_only", createdAt: serverTimestamp() } as never); }
