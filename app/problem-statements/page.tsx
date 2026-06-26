@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "MSME Challenges — NumSum Labs", description: "Public MSME challenge statements approved for problem-first industrial innovation." };
 import { Suspense } from "react";
 import { ChallengeBrowser } from "@/components/challenge-browser";
 import { EmptyState, ErrorState, LoadingState } from "@/components/data-states";

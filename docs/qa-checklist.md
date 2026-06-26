@@ -57,3 +57,10 @@
 - [ ] Verify completed members can create allowed owned private/member records but cannot publish/make public or read others' private records.
 - [ ] Confirm `.github/workflows/qa-security.yml` runs typecheck, lint, build, and rules tests without migration/reset apply commands.
 - [ ] Complete manual route smoke testing with seeded Firebase Auth users after reset.
+
+## Prompt 8C public site polish checks
+- Confirm homepage headline, subheadline, and primary CTA say Submit MSME Challenge.
+- Confirm public metrics use only public-safe data or founding-stage copy.
+- Confirm public navigation and footer exclude Community, Organizations, Team Directory, Notifications, and admin/internal links.
+- Confirm success stories, pilots, knowledge, research, SOPs, and competitions display only approved/public records.
+- Run `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run test:rules` when available.

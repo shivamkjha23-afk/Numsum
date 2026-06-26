@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Competitions — NumSum Labs", description: "Public MSME innovation challenges linked to structured industrial problems." };
 import { Suspense } from "react";
 import { Button, Card } from "@/components/ui";
 import { CollectionBrowser } from "@/components/collection-browser";

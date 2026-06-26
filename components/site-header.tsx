@@ -14,9 +14,9 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#02050a]/85 backdrop-blur-xl">
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
-        <Link className="flex items-center gap-3" href="/" aria-label="NumSum home">
-          <Image src={brand.logo} alt="NumSum Lab logo" width={40} height={40} className="rounded-xl bg-white p-1" priority />
-          <span className="font-display text-2xl font-bold">NumSum</span>
+        <Link className="flex items-center gap-3" href="/" aria-label="NumSum Labs home">
+          <Image src={brand.logo} alt="NumSum Labs logo" width={40} height={40} className="rounded-xl bg-white p-1" priority />
+          <span className="font-display text-2xl font-bold">NumSum Labs</span>
         </Link>
         <div className="hidden flex-1 items-center justify-center gap-2 text-sm text-white/70 lg:flex">
           <Link className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white" href={homeLink[1]}>{homeLink[0]}</Link>

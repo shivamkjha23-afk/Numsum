@@ -47,3 +47,6 @@
 - **Severity:** Low.
 - **Risk:** The QA security workflow uses `npm install --no-audit --no-fund` because no `package-lock.json`, `npm-shrinkwrap.json`, or `yarn.lock` is committed. This avoids the setup-node cache/npm-ci failure, but installs are not deterministic.
 - **Next action:** Commit `package-lock.json` in a dedicated dependency maintenance change, re-enable npm caching, and switch the workflow back to `npm ci`.
+
+## Public testimonial submissions
+A full public testimonial or review submission flow is not implemented. Testimonials should be treated as a future enhancement and displayed only after approval/publication rules are in place.
