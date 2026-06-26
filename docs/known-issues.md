@@ -2,13 +2,13 @@
 
 ## Critical before deployment
 
-No unresolved critical deployment blockers are known after Prompt 8D. Typecheck, lint, and build pass locally. Firestore rules tests are blocked in this container because the `firebase` CLI executable is unavailable, while CI remains configured to install dependencies, set up Java, and run `npm run test:rules`. Re-open this section immediately if a security/privacy regression, build failure, broken public route, or broken admin auth issue is found during seeded browser QA.
+No unresolved critical deployment blockers are known after the final soft-launch readiness pass if typecheck, lint, build, founder-admin verification, and public/private smoke tests pass. Typecheck, lint, and build pass locally. Firestore rules tests are blocked in this container because the `firebase` CLI executable is unavailable, while CI remains configured to install dependencies, set up Java, and run `npm run test:rules`. Re-open this section immediately if a security/privacy regression, build failure, broken public route, or broken admin auth issue is found during seeded browser QA.
 
 ## Important before launch
 
 | Issue | Affected files/routes | Suggested next action |
 |---|---|---|
-| Seeded manual QA is still required for persona-specific privacy checks. | Public/member/admin routes | Create seeded public/private records and accounts for public, incomplete member, completed member, submitter, competition team member, assigned internal member, admin, and super-admin. |
+| Manual real-account QA is still required for founder, public/incognito, and non-admin privacy checks; seeded fake users are not part of the current launch path. | Public/member/admin routes | Create seeded public/private records and accounts for public, incomplete member, completed member, submitter, competition team member, assigned internal member, admin, and super-admin. |
 | Firestore composite indexes may be required by production data shape. | Firestore queries in repository helpers | Capture Firebase index prompts during seeded QA and commit/index deploy definitions before launch. |
 | CI rules tests depend on Firebase emulator/Java availability. | `.github/workflows/qa-security.yml`, `tests/firestore-rules` | Keep workflow configured and monitor CI environment availability. |
 | Production environment setup remains operator-owned. | Firebase project, environment variables, hosting | Verify production Firebase config, auth providers, domains, backups, security rules, and deploy target. |
@@ -33,3 +33,10 @@ No unresolved critical deployment blockers are known after Prompt 8D. Typecheck,
 - Production Firebase rules and indexes must be deployed manually; CI validates rules but does not deploy.
 - The baseline seed script is manual-only and flag-gated. It must not be run as part of CI.
 - Public pages are expected to show founding-stage empty states until real approved data exists; do not publish fake impact metrics or success stories.
+
+## Final soft-launch notes
+
+- Homepage hero layout has been corrected so hero copy appears above the network visual. Recheck in the deployed site on desktop and mobile.
+- Founder-admin verification and final deployment smoke testing are now explicit launch gates.
+- First real data should be created manually from the admin UI; fake seeded users, fake MSME data, fake testimonials, fake success stories, and fake metrics remain prohibited.
+- Full multi-persona QA is deferred until broader onboarding, after soft-launch access boundaries are verified.

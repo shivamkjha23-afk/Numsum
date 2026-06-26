@@ -30,3 +30,9 @@ Success and impact content must be public-safe. Public homepage impact cards cur
 
 ## Hidden from public navigation
 Community, Organizations, Team Directory, Notifications, admin dashboards, internal review, governance, execution, objective targets, and contribution operations are intentionally hidden from the public navigation and footer.
+
+## Final soft-launch homepage standard
+
+The homepage hero should lead with “Turning MSME Challenges into Practical Industrial Solutions,” the MSME-first subheadline, the primary **Submit MSME Challenge** CTA, and secondary exploration CTAs. The network visual should appear below the copy, not side-by-side, to preserve readability and avoid overlap on desktop or mobile.
+
+Public pages should continue using founding-stage language unless real approved public records exist. Do not imply large existing impact, testimonials, or success metrics without verified public-safe data.
