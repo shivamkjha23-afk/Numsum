@@ -79,11 +79,18 @@ async function run() {
     await assertFails(getDoc(doc(publicDb, "execution_work_items", "assigned-work")));
     await assertFails(getDoc(doc(publicDb, "contribution_records", "member-contribution")));
 
-    await assertSucceeds(setDoc(doc(incompleteDb, "problem_statements", "incomplete-problem"), { createdBy: USERS.incomplete.uid, submittedByUserId: USERS.incomplete.uid, visibility: "submitter_only", status: "submitted" }));
-    await assertFails(setDoc(doc(incompleteDb, "competition_submissions", "blocked"), { createdBy: USERS.incomplete.uid, visibility: "team_only", status: "draft", adminNotes: "no" }));
-    await assertFails(setDoc(doc(incompleteDb, "knowledge_assets", "blocked-public"), { createdBy: USERS.incomplete.uid, visibility: "public", status: "published", problemStatementId: "public-problem" }));
+    await assertFails(setDoc(doc(incompleteDb, "problem_statements", "incomplete-problem"), { createdBy: USERS.incomplete.uid, submittedByUserId: USERS.incomplete.uid, visibility: "submitter_only", status: "submitted" }));
+    await assertFails(setDoc(doc(incompleteDb, "competition_participations", "blocked-registration"), { participantUserId: USERS.incomplete.uid, competitionId: "open-competition", status: "registered" }));
+    await assertFails(setDoc(doc(incompleteDb, "competition_teams", "blocked-team"), { members: [USERS.incomplete.uid], leader: USERS.incomplete.uid, competitionId: "open-competition" }));
+    await assertFails(setDoc(doc(incompleteDb, "competition_submissions", "blocked"), { createdBy: USERS.incomplete.uid, members: [USERS.incomplete.uid], visibility: "team_only", status: "draft" }));
+    await assertFails(setDoc(doc(incompleteDb, "knowledge_assets", "blocked-knowledge"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review", problemStatementId: "public-problem" }));
+    await assertFails(setDoc(doc(incompleteDb, "research_posts", "blocked-research"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review" }));
+    await assertFails(setDoc(doc(incompleteDb, "contribution_claims", "blocked-claim"), { contributorUserId: USERS.incomplete.uid, status: "submitted" }));
 
     await assertSucceeds(setDoc(doc(memberDb, "problem_statements", "member-problem"), { createdBy: USERS.member.uid, submittedByUserId: USERS.member.uid, visibility: "submitter_only", status: "submitted" }));
+    await assertSucceeds(setDoc(doc(memberDb, "competition_participations", "member-registration"), { participantUserId: USERS.member.uid, competitionId: "open-competition", status: "registered" }));
+    await assertSucceeds(setDoc(doc(memberDb, "competition_teams", "member-team"), { members: [USERS.member.uid], leader: USERS.member.uid, competitionId: "open-competition" }));
+    await assertSucceeds(setDoc(doc(memberDb, "competition_submissions", "member-submission"), { createdBy: USERS.member.uid, members: [USERS.member.uid], visibility: "team_only", status: "draft" }));
     await assertFails(getDoc(doc(memberDb, "problem_statements", "private-problem")));
     await assertFails(updateDoc(doc(memberDb, "problem_statements", "public-problem"), { status: "published" }));
     await assertFails(setDoc(doc(memberDb, "knowledge_assets", "member-public"), { createdBy: USERS.member.uid, visibility: "public", status: "published", problemStatementId: "public-problem" }));

@@ -48,3 +48,12 @@
 - Production Firestore migration must be dry-run reviewed before apply.
 - A Firestore backup/export should be taken before apply.
 - Firestore emulator rules tests are located at `tests/firestore-rules/firestore-rules.test.ts` and should be run with `npm run test:rules`.
+
+## Clean environment and security readiness
+
+- [ ] Confirm historical sensitive-field migration remains optional for current blank/test/junk data.
+- [ ] Use `docs/dev-data-reset.md` for any dev/staging/test reset; never reset production or real user data.
+- [ ] Verify incomplete-profile users are denied problem, competition registration/team/submission, knowledge/research, and contribution create operations by Firestore rules.
+- [ ] Verify completed members can create allowed owned private/member records but cannot publish/make public or read others' private records.
+- [ ] Confirm `.github/workflows/qa-security.yml` runs typecheck, lint, build, and rules tests without migration/reset apply commands.
+- [ ] Complete manual route smoke testing with seeded Firebase Auth users after reset.

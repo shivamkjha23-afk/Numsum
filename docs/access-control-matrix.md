@@ -36,3 +36,10 @@ Roles: public visitor, logged-in incomplete profile, completed member, submitter
 ## Historical sensitive-field migration status
 
 Prompt 8B-2 adds a controlled migration path for historical sensitive fields. Companion metadata remains admin-only. Production data is only partially resolved until operators review `npm run migrate:sensitive-fields:dry-run`, take a backup/export, and run `npm run migrate:sensitive-fields:apply` against the intended Firebase project.
+
+## Current enforcement notes
+
+- Firestore rules now use `isProfileCompleteUser()` for member-owned create operations that require onboarding completion: private submitted problems, competition registrations, competition teams, competition submissions, knowledge/research submissions, and contribution claims.
+- Incomplete-profile users may read public-safe records but cannot create those member workflow records until their `users/{uid}.profileComplete` value is `true`.
+- Admin and super-admin access remains available through admin helpers and is not dependent on member profile-completion gates.
+- Historical sensitive-field migration remains available but optional for current blank/test/junk data. Use clean dev reset guidance in `docs/dev-data-reset.md` until real user data requires backup/migration policy review.

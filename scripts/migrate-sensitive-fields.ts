@@ -1,3 +1,4 @@
+export {};
 /* Historical sensitive-field migration for NumSum Labs Firestore documents. */
 
 type CollectionReference = { limit: (n: number) => { get: () => Promise<QuerySnapshot> }; get: () => Promise<QuerySnapshot>; doc: (id: string) => DocumentReference };

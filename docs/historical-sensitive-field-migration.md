@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This migration moves historical admin/internal review fields out of shared Firestore documents and into admin-only companion metadata collections.
+This optional migration moves historical admin/internal review fields out of shared Firestore documents and into admin-only companion metadata collections. The script remains available for future production use, but current project data is mostly blank/test/junk and does not need recovery before clean development reset work.
 
 ## Why it is needed
 
-Prompt 8B prevents new writes from storing sensitive fields on shared records. Older documents may still contain fields that Firestore rules cannot hide once a user can read the parent document. Those fields must be migrated before broader publication/member access is considered fully safe.
+Prompt 8B prevents new writes from storing sensitive fields on shared records. Older documents may still contain fields that Firestore rules cannot hide once a user can read the parent document. Those fields must be migrated before broader publication/member access is considered fully safe if the project contains real user data. For the current blank/test/junk project state, a clean reset is acceptable and this migration is not the priority.
 
 ## Affected collections scanned
 
@@ -80,7 +80,7 @@ Apply mode writes detected sensitive values to the mapped admin-only metadata do
 
 ## Rollback and backup recommendation
 
-Before applying in production, export Firestore or take an equivalent point-in-time backup. Rollback is restoring the exported collections or copying the metadata fields back from the companion collections if a business-approved reversal is needed.
+Before applying in production or before any real public launch with real user data, revisit and approve the backup, retention, migration, and deletion policy. Export Firestore or take an equivalent point-in-time backup before apply mode. Rollback is restoring the exported collections or copying the metadata fields back from the companion collections if a business-approved reversal is needed.
 
 ## Production safety checklist
 
