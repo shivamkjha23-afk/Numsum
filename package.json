@@ -36,7 +36,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "firebase-admin": "^12.7.0",
-    "@firebase/rules-unit-testing": "^4.0.1",
+    "@firebase/rules-unit-testing": "^3.0.4",
     "firebase-tools": "^13.29.2"
   }
 }
