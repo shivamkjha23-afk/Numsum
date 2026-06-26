@@ -5,7 +5,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 
 const projectId = `numsum-rules-${Date.now()}`;
 
@@ -41,6 +41,7 @@ async function seed(env: any) {
       setDoc(doc(db, "problem_admin_metadata", "private-problem"), { adminNotes: "secret" }),
       setDoc(doc(db, "knowledge_assets", "public-knowledge"), { visibility: "public", status: "approved", createdBy: USERS.admin.uid }),
       setDoc(doc(db, "competitions", "open-competition"), { visibility: "public", status: "open", title: "Open" }),
+      setDoc(doc(db, "competitions", "draft-competition"), { visibility: "public", status: "draft", title: "Draft" }),
       setDoc(doc(db, "competition_teams", "own-team"), { members: [USERS.teamMember.uid], leader: USERS.teamMember.uid }),
       setDoc(doc(db, "competition_submissions", "own-submission"), { members: [USERS.teamMember.uid], createdBy: USERS.teamMember.uid, status: "submitted" }),
       setDoc(doc(db, "competition_submissions", "other-submission"), { members: ["other-user"], createdBy: "other-user", status: "submitted" }),
@@ -73,6 +74,9 @@ async function run() {
     await assertSucceeds(getDoc(doc(publicDb, "knowledge_assets", "public-knowledge")));
     await assertFails(getDoc(doc(publicDb, "problem_admin_metadata", "private-problem")));
     await assertSucceeds(getDoc(doc(publicDb, "competitions", "open-competition")));
+    await assertFails(getDoc(doc(publicDb, "competitions", "draft-competition")));
+    await assertFails(getDocs(query(collection(publicDb, "competitions"), where("visibility", "==", "public"))));
+    await assertSucceeds(getDocs(query(collection(publicDb, "competitions"), where("visibility", "==", "public"), where("status", "in", ["published", "upcoming", "open", "closed", "results_declared"]))));
     await assertFails(getDoc(doc(publicDb, "competition_submissions", "own-submission")));
     await assertFails(getDoc(doc(publicDb, "competition_evaluations", "evaluation")));
     await assertFails(getDoc(doc(publicDb, "governance_documents", "governance")));
