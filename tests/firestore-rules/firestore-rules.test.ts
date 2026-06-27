@@ -17,6 +17,7 @@ const USERS = {
   submitter: { uid: "submitter-user", email: "submitter@example.com" },
   teamMember: { uid: "team-user", email: "team@example.com" },
   assigned: { uid: "assigned-user", email: "assigned@example.com" },
+  legacy: { uid: "legacy-user", email: "legacy@example.com" },
   admin: { uid: "admin-user", email: "admin@example.com" },
   superAdmin: { uid: "super-admin-user", email: "super@example.com" },
 };
@@ -34,6 +35,7 @@ async function seed(env: any) {
       setDoc(doc(db, "users", USERS.submitter.uid), { uid: USERS.submitter.uid, role: "member", profileComplete: true }),
       setDoc(doc(db, "users", USERS.teamMember.uid), { uid: USERS.teamMember.uid, role: "member", profileComplete: true }),
       setDoc(doc(db, "users", USERS.assigned.uid), { uid: USERS.assigned.uid, role: "member", profileComplete: true }),
+      setDoc(doc(db, "users", USERS.legacy.uid), { email: USERS.legacy.email, profileComplete: false }),
       setDoc(doc(db, "users", USERS.admin.uid), { uid: USERS.admin.uid, role: "admin", profileComplete: true }),
       setDoc(doc(db, "users", USERS.superAdmin.uid), { uid: USERS.superAdmin.uid, role: "super_admin", profileComplete: true }),
       setDoc(doc(db, "problem_statements", "public-problem"), { visibility: "public", status: "published", title: "Published" }),
@@ -63,9 +65,11 @@ async function run() {
     const publicDb = env.unauthenticatedContext().firestore();
     const incompleteDb = authed(env, USERS.incomplete);
     const memberDb = authed(env, USERS.member);
+    const newSignupDb = authed(env, { uid: "new-signup-user", email: "new-signup@example.com" });
     const submitterDb = authed(env, USERS.submitter);
     const teamDb = authed(env, USERS.teamMember);
     const assignedDb = authed(env, USERS.assigned);
+    const legacyDb = authed(env, USERS.legacy);
     const adminDb = authed(env, USERS.admin);
     const superAdminDb = authed(env, USERS.superAdmin);
 
@@ -90,6 +94,13 @@ async function run() {
     await assertFails(setDoc(doc(incompleteDb, "knowledge_assets", "blocked-knowledge"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review", problemStatementId: "public-problem" }));
     await assertFails(setDoc(doc(incompleteDb, "research_posts", "blocked-research"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review" }));
     await assertFails(setDoc(doc(incompleteDb, "contribution_claims", "blocked-claim"), { contributorUserId: USERS.incomplete.uid, status: "submitted" }));
+
+    await assertSucceeds(setDoc(doc(newSignupDb, "users", "new-signup-user"), { uid: "new-signup-user", email: "new-signup@example.com", role: "member", status: "active", profileComplete: false, provider: "password" }, { merge: true }));
+    await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-user"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "member", currentRole: "member", status: "pending_review", reason: "New user signup", provider: "password" }, { merge: true }));
+    await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-elevated"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "contributor", currentRole: "member", status: "pending", reason: "Need contribution access" }));
+    await assertFails(setDoc(doc(newSignupDb, "system_stats", "platform"), { memberCount: 1 }, { merge: true }));
+    await assertSucceeds(setDoc(doc(legacyDb, "users", USERS.legacy.uid), { uid: USERS.legacy.uid, role: "member", status: "active", updatedAt: "now" }, { merge: true }));
+    await assertFails(setDoc(doc(legacyDb, "users", USERS.legacy.uid), { uid: USERS.legacy.uid, role: "admin", status: "active", updatedAt: "now" }, { merge: true }));
 
     await assertSucceeds(setDoc(doc(memberDb, "problem_statements", "member-problem"), { createdBy: USERS.member.uid, submittedByUserId: USERS.member.uid, visibility: "submitter_only", status: "submitted" }));
     await assertSucceeds(setDoc(doc(memberDb, "competition_participations", "member-registration"), { participantUserId: USERS.member.uid, competitionId: "open-competition", status: "registered" }));
