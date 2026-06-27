@@ -17,6 +17,7 @@ const USERS = {
   submitter: { uid: "submitter-user", email: "submitter@example.com" },
   teamMember: { uid: "team-user", email: "team@example.com" },
   assigned: { uid: "assigned-user", email: "assigned@example.com" },
+  legacy: { uid: "legacy-user", email: "legacy@example.com" },
   admin: { uid: "admin-user", email: "admin@example.com" },
   superAdmin: { uid: "super-admin-user", email: "super@example.com" },
 };
@@ -34,6 +35,7 @@ async function seed(env: any) {
       setDoc(doc(db, "users", USERS.submitter.uid), { uid: USERS.submitter.uid, role: "member", profileComplete: true }),
       setDoc(doc(db, "users", USERS.teamMember.uid), { uid: USERS.teamMember.uid, role: "member", profileComplete: true }),
       setDoc(doc(db, "users", USERS.assigned.uid), { uid: USERS.assigned.uid, role: "member", profileComplete: true }),
+      setDoc(doc(db, "users", USERS.legacy.uid), { email: USERS.legacy.email, profileComplete: false }),
       setDoc(doc(db, "users", USERS.admin.uid), { uid: USERS.admin.uid, role: "admin", profileComplete: true }),
       setDoc(doc(db, "users", USERS.superAdmin.uid), { uid: USERS.superAdmin.uid, role: "super_admin", profileComplete: true }),
       setDoc(doc(db, "problem_statements", "public-problem"), { visibility: "public", status: "published", title: "Published" }),
@@ -67,6 +69,7 @@ async function run() {
     const submitterDb = authed(env, USERS.submitter);
     const teamDb = authed(env, USERS.teamMember);
     const assignedDb = authed(env, USERS.assigned);
+    const legacyDb = authed(env, USERS.legacy);
     const adminDb = authed(env, USERS.admin);
     const superAdminDb = authed(env, USERS.superAdmin);
 

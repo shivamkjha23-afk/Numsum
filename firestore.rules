@@ -13,7 +13,9 @@ service cloud.firestore {
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
-    function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['displayName','name','fullName','email','phoneNumber','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
+    function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['uid','displayName','name','fullName','email','phoneNumber','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
+    function selfProfileRoleSafe() { return request.resource.data.role == resource.data.role || (!resource.data.keys().hasAny(['role']) && request.resource.data.role == 'member'); }
+    function selfProfileStatusSafe() { return request.resource.data.status == resource.data.status || (!resource.data.keys().hasAny(['status']) && request.resource.data.status == 'active'); }
     function adminRolePatchAllowed(uid) { return platformAdmin() && uid != request.auth.uid && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['role']) || request.resource.data.role in ['member','submitter','contributor','researcher','msme_representative','internal_member','reviewer','moderator','organization','pending_admin','admin'] || isSuperAdmin()); }
     // Public reads require explicit public visibility and a safe externally publishable status.
     function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
@@ -62,7 +64,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn() && (uid == request.auth.uid || platformAdmin());
       allow create: if createsSelfProfile(uid) || platformAdmin();
-      allow update: if (signedIn() && uid == request.auth.uid && request.resource.data.role == resource.data.role && request.resource.data.status == resource.data.status && safeSelfProfileKeys()) || adminRolePatchAllowed(uid);
+      allow update: if (signedIn() && uid == request.auth.uid && request.resource.data.uid == uid && selfProfileRoleSafe() && selfProfileStatusSafe() && safeSelfProfileKeys()) || adminRolePatchAllowed(uid);
       allow delete: if isSuperAdmin();
     }
 
