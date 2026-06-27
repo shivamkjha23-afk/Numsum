@@ -37,6 +37,7 @@ export function AuthModal({
   const router = useRouter();
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"signin" | "join">("signin");
+  const [creatingProfile, setCreatingProfile] = useState(false);
 
   if (!open) return null;
 
@@ -45,7 +46,9 @@ export function AuthModal({
     const fallbackReturnTo = returnTo || window.location.pathname || "/";
 
     if (currentUser) {
+      setCreatingProfile(true);
       const profile = await ensureUserProfile(currentUser);
+      setCreatingProfile(false);
       if (!isProfileComplete(profile)) {
         onClose();
         router.push(`/profile/complete?returnTo=${encodeURIComponent(fallbackReturnTo)}`);
@@ -68,6 +71,7 @@ export function AuthModal({
       await signInWithPopup(auth, new GoogleAuthProvider());
       await done();
     } catch (e) {
+      setCreatingProfile(false);
       setError(authErrorMessage(e));
     }
   }
@@ -152,7 +156,8 @@ export function AuthModal({
           <button className="rounded-full bg-blue-400 px-5 py-3 font-semibold text-navy">Continue with Email</button>
         </form>
 
-        {error && <p className="mt-4 rounded-xl border border-red-300/20 bg-red-500/10 p-3 text-sm text-red-100">{error}</p>}
+        {creatingProfile && <p className="mt-4 rounded-xl border border-blue-300/20 bg-blue-500/10 p-3 text-sm text-blue-100">Creating your member profile…</p>}
+        {error && <p className="mt-4 rounded-xl border border-red-300/20 bg-red-500/10 p-3 text-sm text-red-100">{error.includes("permission") ? "Could not create member profile. Please retry or contact admin." : error}</p>}
       </div>
     </div>
   );

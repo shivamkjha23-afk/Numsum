@@ -17,6 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingAuth, setPendingAuth] = useState<PendingAuth>(null);
+  const [profileError, setProfileError] = useState("");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,9 +25,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => onAuthStateChanged(auth, async (next) => {
     setLoading(true);
     setUser(next);
-    if (!next) { console.info("[AUTH] No authenticated Firebase user"); setProfile(null); setLoading(false); return; }
+    if (!next) { console.info("[AUTH] No authenticated Firebase user"); setProfile(null); setProfileError(""); setLoading(false); return; }
     console.info("[AUTH] Firebase user detected", { uid: next.uid, email: next.email });
-    try { const loadedProfile = await ensureUserProfile(next); console.info("[AUTH] Profile loaded", { uid: next.uid, email: loadedProfile.email, role: loadedProfile.role }); setProfile(loadedProfile); } catch (error) { console.error("[AUTH] Profile initialization failed", error); setProfile(null); }
+    try { setProfileError(""); const loadedProfile = await ensureUserProfile(next); console.info("[AUTH] Profile loaded", { uid: next.uid, email: loadedProfile.email, role: loadedProfile.role }); setProfile(loadedProfile); } catch (error) { console.error("[AUTH] Profile initialization failed", error); setProfileError("Could not create member profile. Please retry or contact admin."); setProfile(null); }
     setLoading(false);
   }), []);
 
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const closeAuth = useCallback(() => setPendingAuth(null), []);
   const refreshProfile = useCallback(async () => {
     if (!auth.currentUser) { setProfile(null); return null; }
+    setProfileError("");
     const loadedProfile = await ensureUserProfile(auth.currentUser);
     setProfile(loadedProfile);
     return loadedProfile;
@@ -50,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loading, user, profile, profileComplete, pathname, searchParams, router]);
   const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile }), [user, profile, loading, profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile]);
 
-  return <AuthContext.Provider value={value}>{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{profileError && <div className="fixed left-4 right-4 top-4 z-[120] rounded-2xl border border-red-300/30 bg-red-950/95 p-4 text-sm text-red-50 shadow-2xl">{profileError}</div>}{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
 }
 
 export function useAuth() { const ctx = useContext(AuthContext); if (!ctx) throw new Error("useAuth must be used inside AuthProvider"); return ctx; }
