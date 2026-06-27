@@ -7,7 +7,7 @@ function Badge({ children }: { children: React.ReactNode }) { return <span class
 import { getUserRoleRequests, getUsersForRoleManagement, updateUserRoleAndStatus } from "@/lib/repositories/firestore";
 import type { Role, UserProfile } from "@/lib/types";
 
-const roles: Role[] = ["member", "reviewer", "moderator", "organization", "pending_admin", "admin", "super_admin"];
+const roles: Role[] = ["member", "admin", "super_admin"];
 function fmt(value: unknown) { return (value as { toDate?: () => Date })?.toDate?.()?.toLocaleString() || (value ? String(value) : "—"); }
 
 export default function AdminUsersPage() {
