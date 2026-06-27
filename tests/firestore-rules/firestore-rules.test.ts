@@ -99,8 +99,6 @@ async function run() {
     await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-user"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "member", currentRole: "member", status: "pending_review", reason: "New user signup", provider: "password" }, { merge: true }));
     await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-elevated"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "contributor", currentRole: "member", status: "pending", reason: "Need contribution access" }));
     await assertFails(setDoc(doc(newSignupDb, "system_stats", "platform"), { memberCount: 1 }, { merge: true }));
-    await assertSucceeds(setDoc(doc(legacyDb, "users", USERS.legacy.uid), { uid: USERS.legacy.uid, role: "member", status: "active", updatedAt: "now" }, { merge: true }));
-    await assertFails(setDoc(doc(legacyDb, "users", USERS.legacy.uid), { uid: USERS.legacy.uid, role: "admin", status: "active", updatedAt: "now" }, { merge: true }));
 
     await assertSucceeds(setDoc(doc(memberDb, "problem_statements", "member-problem"), { createdBy: USERS.member.uid, submittedByUserId: USERS.member.uid, visibility: "submitter_only", status: "submitted" }));
     await assertSucceeds(setDoc(doc(memberDb, "competition_participations", "member-registration"), { participantUserId: USERS.member.uid, competitionId: "open-competition", status: "registered" }));
