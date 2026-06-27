@@ -1,15 +1,34 @@
 "use client";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from "firebase/auth";
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { auth } from "@/lib/firebase";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { ensureUserProfile, isProfileComplete } from "@/lib/repositories/firestore";
 
 function authCode(error: unknown) { return typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : ""; }
 
-export function AuthModal({ open, onClose, returnTo, message = "Please sign in to continue", onSuccess }: { open: boolean; onClose: () => void; returnTo?: string; message?: string; onSuccess?: () => void | Promise<void> }) {
+type AuthModalProps = {
+  open: boolean;
+  onClose: () => void;
+  returnTo?: string;
+  message?: string;
+  onSuccess?: () => void | Promise<void>;
+};
+
+export function AuthModal({
+  open,
+  onClose,
+  returnTo,
+  message = "Please sign in to continue",
+  onSuccess,
+}: AuthModalProps) {
   const router = useRouter();
   const [error, setError] = useState("");
   if (!open) return null;
