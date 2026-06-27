@@ -379,19 +379,36 @@ function authProvider(user: FirebaseUser) {
       : "unknown";
 }
 
-async function createNewUserRoleReview(userId: string, profile: Partial<UserProfile>) {
-  return upsertRecord(COLLECTIONS.userRoleRequests, userId, {
-    userId,
-    email: profile.email || "",
-    displayName: profile.displayName || profile.name || "",
-    requestedRole: "member",
-    currentRole: "member",
-    status: "pending_review",
-    reason: "New user signup",
-    provider: profile.provider || "unknown",
+
+const PROTECTED_ROLES: Role[] = ["admin", "super_admin", "internal_member", "reviewer", "contributor"];
+const DEFAULT_MEMBER_ROLES: Role[] = ["member"];
+
+function hasProtectedRole(profile: Partial<UserProfile>) {
+  const roles = Array.isArray(profile.roles) ? profile.roles : profile.role ? [profile.role] : [];
+  return roles.some((role) => PROTECTED_ROLES.includes(role as Role));
+}
+
+function defaultMemberProfile(user: FirebaseUser) {
+  const displayName = user.displayName || user.email || "Member";
+  return {
+    uid: user.uid,
+    email: user.email || "",
+    fullName: displayName,
+    displayName,
+    name: displayName,
+    photoURL: user.photoURL || "",
+    phoneNumber: user.phoneNumber || "",
+    roles: DEFAULT_MEMBER_ROLES,
+    primaryRole: "member",
+    role: "member",
+    memberStatus: "pending_profile_completion",
+    status: "active",
+    profileComplete: false,
+    authProvider: authProvider(user),
+    provider: authProvider(user),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  }).catch((error) => console.warn("[PROFILE] Unable to create role review record", error));
+  };
 }
 
 export async function ensureUserProfile(
@@ -402,73 +419,61 @@ export async function ensureUserProfile(
     email: user.email,
   });
   const existing = await getRecord<UserProfile>(COLLECTIONS.users, user.uid);
-  const isBootstrapAdmin = await isBootstrapAdminEmail(user.email);
-  console.info("[ADMIN] Bootstrap admin check", {
-    uid: user.uid,
-    email: normalizeEmail(user.email),
-    bootstrapMatch: isBootstrapAdmin,
-  });
-  const base = {
-    email: user.email || "",
-    displayName:
-      user.displayName ||
-      (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"),
-    name:
-      user.displayName ||
-      (isBootstrapAdmin ? BOOTSTRAP_ADMIN_NAME : user.email || "Member"),
-    updatedAt: serverTimestamp(),
-  };
+
   if (!existing) {
-    const profile: Record<string, unknown> = {
+    const profile = defaultMemberProfile(user);
+    console.info("[PROFILE] Creating first-login member profile", {
       uid: user.uid,
-      ...base,
-      role: isBootstrapAdmin ? "admin" : "member",
-      status: "active",
-      profileComplete: false,
-      provider: authProvider(user),
-      createdAt: serverTimestamp(),
-    };
-    console.info("[PROFILE] Creating user profile", {
-      uid: user.uid,
-      email: base.email,
-      role: profile.role,
+      email: profile.email,
+      roles: profile.roles,
     });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
-    // Basic member access is automatic. Auxiliary admin review/stat writes must not block login.
+    // Basic member access is automatic. Auxiliary stat writes must not block login.
     await bumpStats("memberCount").catch((error) =>
       console.warn("[PROFILE] Unable to bump member count", error),
     );
-    await createNewUserRoleReview(user.uid, profile);
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
-  const patch: Record<string, unknown> = { uid: user.uid, updatedAt: serverTimestamp() };
-  if (!existing.email) patch.email = base.email;
-  if (!existing.displayName) patch.displayName = base.displayName;
-  if (!existing.name) patch.name = base.name;
+
+  const roles = Array.isArray(existing.roles) ? existing.roles.filter(Boolean) as Role[] : [];
+  const preserveProtectedRoles = hasProtectedRole(existing);
+  const patch: Record<string, unknown> = {};
+  if (!existing.uid) patch.uid = user.uid;
+  if (!existing.email && user.email) patch.email = user.email;
+  if (!existing.displayName && user.displayName) patch.displayName = user.displayName;
+  if (!existing.name && (user.displayName || user.email)) patch.name = user.displayName || user.email;
+  if (!existing.fullName && user.displayName) patch.fullName = user.displayName;
+  if (!existing.photoURL && user.photoURL) patch.photoURL = user.photoURL;
+  if (!existing.phoneNumber && user.phoneNumber) patch.phoneNumber = user.phoneNumber;
+  if (!existing.authProvider) patch.authProvider = authProvider(user);
   if (!existing.provider) patch.provider = authProvider(user);
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
   if (!existing.status) patch.status = "active";
-  if (!existing.role) patch.role = "member";
-  if (existing.profileComplete === undefined) patch.profileComplete = isProfileComplete(existing);
-  if (
-    isBootstrapAdmin &&
-    existing.role !== "admin" &&
-    existing.role !== "super_admin"
-  )
-    patch.role = "admin";
-  console.info("[PROFILE] Updating user profile", {
-    uid: user.uid,
-    role: patch.role || existing.role,
-  });
-  await upsertRecord(COLLECTIONS.users, user.uid, patch);
+  if (!existing.memberStatus) patch.memberStatus = existing.profileComplete ? "active" : "pending_profile_completion";
+  if (roles.length === 0) patch.roles = DEFAULT_MEMBER_ROLES;
+  const fallbackPrimaryRole = preserveProtectedRoles ? roles[0] : "member";
+  if (!existing.primaryRole) patch.primaryRole = fallbackPrimaryRole;
+  if (!existing.role && !preserveProtectedRoles) patch.role = "member";
+  if (existing.profileComplete === undefined) patch.profileComplete = false;
+
+  if (Object.keys(patch).length > 0) {
+    patch.updatedAt = serverTimestamp();
+    console.info("[PROFILE] Repairing user profile bootstrap fields", {
+      uid: user.uid,
+      patchedFields: Object.keys(patch),
+    });
+    await upsertRecord(COLLECTIONS.users, user.uid, patch);
+  }
+
   return {
     ...existing,
-    uid: user.uid,
-    email: existing.email || base.email,
-    displayName: existing.displayName || base.displayName,
-    name: existing.name || base.name,
-    status: (patch.status as string) || existing.status || "active",
-    role: (patch.role as UserProfile["role"]) || existing.role || "member",
+    ...patch,
+    uid: existing.uid || user.uid,
+    email: existing.email || user.email || "",
+    roles: roles.length ? roles : DEFAULT_MEMBER_ROLES,
+    primaryRole: existing.primaryRole || (patch.primaryRole as Role | undefined) || roles[0] || "member",
+    role: existing.role || existing.primaryRole || roles[0] || "member",
+    profileComplete: existing.profileComplete ?? false,
   } as UserProfile;
 }
 
@@ -530,7 +535,7 @@ export async function createUserProfileIfMissing(user: FirebaseUser) {
   return ensureUserProfile(user);
 }
 
-const SELF_PROFILE_BLOCKED_FIELDS = new Set(["role", "status", "contributionScore", "recognition", "adminNotes", "internalNotes", "adminInternalNotes", "reviewNotes", "reviewerNotes", "isAdmin", "isSuperAdmin"]);
+const SELF_PROFILE_BLOCKED_FIELDS = new Set(["role", "roles", "primaryRole", "status", "contributionScore", "recognition", "adminNotes", "internalNotes", "adminInternalNotes", "reviewNotes", "reviewerNotes", "isAdmin", "isSuperAdmin"]);
 
 function safeUserProfilePatch(patch: Partial<UserProfile>) {
   return Object.fromEntries(Object.entries(patch).filter(([key]) => !SELF_PROFILE_BLOCKED_FIELDS.has(key))) as Partial<UserProfile>;
@@ -543,6 +548,7 @@ export async function updateUserProfile(userId: string, patch: Partial<UserProfi
   const payload: Record<string, unknown> = {
     ...patch,
     profileComplete,
+    memberStatus: profileComplete ? "active" : existing?.memberStatus || "pending_profile_completion",
     updatedAt: serverTimestamp(),
   };
   if (profileComplete && !existing?.profileCompletedAt) payload.profileCompletedAt = serverTimestamp();

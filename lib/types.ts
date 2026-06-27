@@ -60,8 +60,13 @@ export interface UserProfile extends FirestoreEntity {
   email?: string;
   phoneNumber?: string;
   role?: Role;
+  roles?: Role[];
+  primaryRole?: Role;
   status?: string;
+  memberStatus?: "pending_profile_completion" | "active" | "inactive" | string;
   profileComplete?: boolean;
+  photoURL?: string;
+  authProvider?: "google" | "password" | "unknown" | string;
   provider?: "google" | "password" | "unknown" | string;
   profileCompletedAt?: DateLike;
   profileType?: UserProfileType;
