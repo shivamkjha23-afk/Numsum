@@ -63,6 +63,7 @@ async function run() {
     const publicDb = env.unauthenticatedContext().firestore();
     const incompleteDb = authed(env, USERS.incomplete);
     const memberDb = authed(env, USERS.member);
+    const newSignupDb = authed(env, { uid: "new-signup-user", email: "new-signup@example.com" });
     const submitterDb = authed(env, USERS.submitter);
     const teamDb = authed(env, USERS.teamMember);
     const assignedDb = authed(env, USERS.assigned);
@@ -90,6 +91,11 @@ async function run() {
     await assertFails(setDoc(doc(incompleteDb, "knowledge_assets", "blocked-knowledge"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review", problemStatementId: "public-problem" }));
     await assertFails(setDoc(doc(incompleteDb, "research_posts", "blocked-research"), { createdBy: USERS.incomplete.uid, visibility: "admin_only", status: "under_review" }));
     await assertFails(setDoc(doc(incompleteDb, "contribution_claims", "blocked-claim"), { contributorUserId: USERS.incomplete.uid, status: "submitted" }));
+
+    await assertSucceeds(setDoc(doc(newSignupDb, "users", "new-signup-user"), { uid: "new-signup-user", email: "new-signup@example.com", role: "member", status: "active", profileComplete: false, provider: "password" }, { merge: true }));
+    await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-user"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "member", currentRole: "member", status: "pending_review", reason: "New user signup", provider: "password" }, { merge: true }));
+    await assertSucceeds(setDoc(doc(newSignupDb, "user_role_requests", "new-signup-elevated"), { userId: "new-signup-user", email: "new-signup@example.com", requestedRole: "contributor", currentRole: "member", status: "pending", reason: "Need contribution access" }));
+    await assertFails(setDoc(doc(newSignupDb, "system_stats", "platform"), { memberCount: 1 }, { merge: true }));
 
     await assertSucceeds(setDoc(doc(memberDb, "problem_statements", "member-problem"), { createdBy: USERS.member.uid, submittedByUserId: USERS.member.uid, visibility: "submitter_only", status: "submitted" }));
     await assertSucceeds(setDoc(doc(memberDb, "competition_participations", "member-registration"), { participantUserId: USERS.member.uid, competitionId: "open-competition", status: "registered" }));

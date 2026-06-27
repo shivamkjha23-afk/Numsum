@@ -439,8 +439,6 @@ export async function ensureUserProfile(
       console.warn("[PROFILE] Unable to bump member count", error),
     );
     await createNewUserRoleReview(user.uid, profile);
-    // Basic member access is automatic; admins can review every new signup in People & Access.
-    await Promise.all([bumpStats("memberCount"), createNewUserRoleReview(user.uid, profile)]);
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
   const patch: Record<string, unknown> = { uid: user.uid, updatedAt: serverTimestamp() };
