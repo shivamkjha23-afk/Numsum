@@ -2,3 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 :root{color-scheme:dark} body{background:#02050a;color:white} .glass{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(18px)}
+
+.hero-orb{position:absolute;pointer-events:none;border-radius:9999px;filter:blur(10px);opacity:.55}
+.hero-orb-a{inset:5% auto auto 6%;width:18rem;height:18rem;background:radial-gradient(circle,rgba(245,158,11,.28),transparent 62%)}
+.hero-orb-b{right:4%;bottom:12%;width:24rem;height:24rem;background:radial-gradient(circle,rgba(59,130,246,.22),transparent 65%)}
+.editorial-card{background:linear-gradient(145deg,rgba(255,248,234,.10),rgba(255,255,255,.025));border-color:rgba(255,248,234,.14);box-shadow:0 24px 80px rgba(0,0,0,.24)}
+.marquee-track{display:flex;width:max-content;gap:3rem;animation:marquee 24s linear infinite;padding-left:100%}
+.marquee-track span{white-space:nowrap}
+@keyframes marquee{to{transform:translateX(-100%)}}
