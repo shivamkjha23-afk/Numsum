@@ -3,12 +3,11 @@ import { CommunityThread } from "@/components/community-thread";
 import { CompetitionActions } from "@/components/competition-actions";
 import { LinkedActions } from "@/components/linked-actions";
 import { Card } from "@/components/ui";
+import type { CompetitionSubmission } from "@/lib/types";
 import {
   getCommunityPostsByAssociation,
   getCompetitionById,
   getCompetitionBySlug,
-  getCompetitionSubmissions,
-  getCompetitionTeams,
 } from "@/lib/repositories/firestore";
 
 export default async function CompetitionDetail({
@@ -17,13 +16,10 @@ export default async function CompetitionDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [competition, teams, submissions, discussions] = await Promise.all([
-    getCompetitionById(id).then((c) => c || getCompetitionBySlug(id)),
-    getCompetitionTeams(id),
-    getCompetitionSubmissions(id),
-    getCommunityPostsByAssociation("competition", id),
-  ]);
+  const competition = await getCompetitionById(id).then((c) => c || getCompetitionBySlug(id));
   if (!competition) notFound();
+  const submissions: CompetitionSubmission[] = [];
+  const discussions = await getCommunityPostsByAssociation("competition", competition.id).catch(() => []);
   const leaderboard = submissions
     .filter((s) => typeof s.score === "number" || s.winner)
     .sort(
@@ -99,7 +95,7 @@ export default async function CompetitionDetail({
           </Card>
           <Card>
             <h2 className="font-display text-2xl">Participation</h2>
-            <p className="mt-3 text-white/60">Login/register to participate, create or join a team, and submit a solution while the competition is open.</p>
+            <p className="mt-3 text-white/60">Login/register to participate, create or join a team, and submit a solution while the competition is open.</p><a href={`/competitions/${competition.slug || competition.id}/join`} className="mt-4 inline-flex rounded-full bg-blue-400 px-5 py-3 font-semibold text-navy">Participate / Form Team / Submit Solution</a>
           </Card>
           <Card>
             <h2 className="font-display text-2xl">Leaderboard</h2>
