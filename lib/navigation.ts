@@ -1,7 +1,23 @@
-export const homeLink = ["Home", "/"] as const;
 export type NavGroup = { label: string; adminOnly?: boolean; links?: readonly (readonly [string, string])[]; sections?: readonly { label: string; links: readonly (readonly [string, string])[] }[] };
+
+export const primaryNavLinks = [
+  ["Submit Challenge", "/submit-problem"],
+  ["MSME Challenges", "/problem-statements"],
+  ["Competitions", "/competitions"],
+  ["Community", "/community"],
+  ["About", "/about"],
+] as const;
+
+export const platformLinks = [
+  ["MSME Intelligence", "/msme-intelligence"],
+  ["Knowledge", "/knowledge"],
+  ["Research", "/research"],
+  ["SOP Library", "/sops"],
+  ["Impact / Pilots", "/pilots"],
+] as const;
+
 export const navGroups: NavGroup[] = [
-  { label: "Public", links: [["Submit MSME Challenge", "/submit-problem"], ["MSME Challenges", "/problem-statements"], ["MSME Intelligence", "/msme-intelligence"], ["Knowledge & Research", "/research"], ["Competitions", "/competitions"], ["Community", "/community"], ["Impact / Pilots", "/pilots"], ["About", "/about"]] },
+  { label: "Platform", links: platformLinks },
   { label: "Admin", adminOnly: true, sections: [
     { label: "Platform", links: [["Admin Dashboard", "/admin"], ["System Health", "/admin/system-health"], ["Initialization", "/admin#initialization"]] },
     { label: "MSME Problem Pipeline", links: [["Problem Review", "/admin/problems"], ["Questionnaire Templates", "/admin/questionnaires"], ["Problem Workspace", "/admin/problems"]] },
@@ -14,5 +30,5 @@ export const navGroups: NavGroup[] = [
   ] },
 ];
 export function getVisibleNavLinks(isAdmin: boolean) {
-  return navGroups.filter((group) => !group.adminOnly || isAdmin).flatMap((group) => group.sections ? group.sections.flatMap((section) => section.links) : (group.links || []));
+  return [...primaryNavLinks, ...navGroups.filter((group) => !group.adminOnly || isAdmin).flatMap((group) => group.sections ? group.sections.flatMap((section) => section.links) : (group.links || []))];
 }

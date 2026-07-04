@@ -579,6 +579,15 @@ function publicConstraints(publicOnly = true) {
 function publicCompetitionConstraints() {
   return [where("visibility", "==", "public"), where("status", "in", [...PUBLIC_COMPETITION_STATUSES])];
 }
+function isRealPublicCompetition(competition: Competition) {
+  return Boolean(
+    competition.id &&
+    !competition.id.startsWith("__") &&
+    competition.slug !== "__schema" &&
+    competition.status &&
+    [...PUBLIC_COMPETITION_STATUSES].includes(competition.status as (typeof PUBLIC_COMPETITION_STATUSES)[number]),
+  );
+}
 function byCreatedAtDesc<T extends { createdAt?: unknown }>(rows: T[]) {
   return [...rows].sort((a, b) =>
     String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
@@ -822,7 +831,7 @@ export const getCompetitions = cache(async (publicOnly = true) => {
       ? [...publicConstraints(true), limit(100)]
       : [orderBy("createdAt", "desc"), limit(100)],
   );
-  return publicOnly ? byCreatedAtDesc(rows) : rows;
+  return publicOnly ? byCreatedAtDesc(rows).filter(isRealPublicCompetition) : rows;
 });
 
 export const getCompetitionBySlug = cache(async (slug: string) => (await listCollection<Competition>(COLLECTIONS.competitions, [where("slug", "==", slug), limit(1)]))[0] || null);
@@ -833,7 +842,7 @@ export const getPublicCompetitions = cache(async () =>
       ...publicCompetitionConstraints(),
       limit(100),
     ]),
-  ),
+  ).filter(isRealPublicCompetition),
 );
 export const getPublicCompetitionsSafe = getPublicCompetitions;
 export const getMemberCompetitions = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [limit(100)]));
