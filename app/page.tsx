@@ -4,6 +4,7 @@ import { EmptyState, LoadingState } from "@/components/data-states";
 import { NetworkHero } from "@/components/network-hero";
 import { HomeTypewriter } from "@/components/home-typewriter";
 import { ProtectedLink } from "@/components/protected-link";
+import { PersonaSwitcher } from "@/components/persona-switcher";
 import { Button, Card } from "@/components/ui";
 import { getProblemStatements, getPublicCompetitions, getPublicKnowledgeAssets, getPublicPilotTracks, getPublicResearchItems, getPublicSOPDocuments } from "@/lib/repositories/firestore";
 
@@ -25,17 +26,6 @@ const whatWeDo = [
 ] as const;
 const workflow = ["MSME Challenge Submitted", "Admin Review & Onboarding", "Structured Problem Statement", "Knowledge / SOP / Research Mapping", "Competition or Pilot", "Measurable Results", "Success Story"];
 const focusAreas = ["Productivity Improvement", "Quality & Inspection", "Reliability & Maintenance", "Energy Efficiency", "Digital Transformation", "Automation & Data Capture", "Process Optimization", "Safety & Compliance", "Market / Export Readiness", "Product Development"];
-const stakeholders = [
-  ["MSMEs", "Submit real industrial challenges and validate practical outcomes."],
-  ["Engineers", "Translate structured problems into feasible technical solutions."],
-  ["Researchers", "Connect research evidence with industrial problem statements."],
-  ["Students", "Work on meaningful engineering challenges with real context."],
-  ["Startups", "Validate solutions against MSME needs before scaling."],
-  ["Consultants", "Support diagnostics, implementation planning, and SOP development."],
-  ["Technology Providers", "Map relevant tools to defined operational gaps."],
-  ["Academic Institutions", "Align labs, projects, and mentorship with MSME upgradation."],
-  ["Industry Experts", "Review, mentor, and strengthen pilot-ready solutions."],
-];
 
 async function PublicMetrics() {
   const [problems, knowledge, research, sops, competitions, pilots] = await Promise.all([
@@ -66,7 +56,7 @@ export default function Home() {
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <ProtectedLink href="/submit-problem" className="rounded-full bg-amber-100 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white">Submit MSME Challenge</ProtectedLink>
           <Button href="/problem-statements" variant="secondary">Explore MSME Challenges</Button>
-          <Button href="/knowledge" variant="secondary">Explore Knowledge & Research</Button>
+          <Button href="/knowledge" variant="secondary">Knowledge library</Button>
         </div>
       </div>
       <div className="relative z-10 w-full pt-2"><NetworkHero /></div>
@@ -82,17 +72,16 @@ export default function Home() {
     <section className="mx-auto max-w-7xl px-6 py-16">
       <p className="text-sm uppercase tracking-[.4em] text-amber-200/70">(Workflow)</p>
       <h2 className="mt-3 font-display text-5xl uppercase tracking-[-.04em]">MSME Problem-to-Impact Workflow</h2>
-      <div className="mt-8 grid gap-3 md:grid-cols-7">{workflow.map((step,i)=><div className="rounded-[2rem] border border-white/10 bg-[#11100d] p-4 shadow-[0_20px_60px_rgba(0,0,0,.22)]" key={step}><p className="text-xs text-blue-200">Step {i+1}</p><p className="mt-2 font-semibold">{step}</p></div>)}</div>
+      <div className="mt-8 grid gap-4 md:grid-cols-7" aria-label="MSME problem-to-impact steps">{workflow.map((step,i)=><div className="relative border border-white/10 bg-[#11100d] p-4 shadow-[0_20px_60px_rgba(0,0,0,.22)]" key={step}>{i < workflow.length - 1 && <span aria-hidden="true" className="absolute left-full top-8 hidden h-px w-4 bg-amber-200/40 md:block" />}<p className="font-mono text-xs text-amber-200">STEP {String(i+1).padStart(2,"0")}</p><p className="mt-2 font-semibold">{step}</p></div>)}</div>
     </section>
     <section className="mx-auto max-w-7xl px-6 py-16">
       <p className="text-sm uppercase tracking-[.4em] text-amber-200/70">(Focus)</p>
       <h2 className="mt-3 font-display text-5xl uppercase tracking-[-.04em]">Key Focus Areas</h2>
       <div className="mt-8 flex flex-wrap gap-3">{focusAreas.map((f)=><span key={f} className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-white/75 transition hover:border-amber-200/60 hover:text-amber-50">{f}</span>)}</div>
     </section>
-    <section className="mx-auto max-w-7xl px-6 py-16"><h2 className="font-display text-4xl">Platform Modules</h2><p className="mt-3 max-w-3xl text-white/62">Public pages expose only approved challenges, knowledge, research, SOPs, competitions, and impact records. Review, governance, execution, and contribution operations remain internal.</p></section>
-    <section className="mx-auto max-w-7xl px-6 py-16"><h2 className="font-display text-4xl">Public Metrics</h2><div className="mt-8"><Suspense fallback={<LoadingState label="Loading public metrics" />}><PublicMetrics /></Suspense></div></section>
+    <PersonaSwitcher />
+    <section className="mx-auto max-w-7xl px-6 py-16"><Card className="border-amber-200/30 bg-[#11100d]"><p className="text-sm uppercase tracking-[.35em] text-amber-200/70">(Founding stage)</p><h2 className="mt-3 font-display text-4xl uppercase tracking-[-.03em]">Public knowledge base is launching with approved records only.</h2><p className="mt-4 max-w-3xl text-white/65">Instead of showing hollow counters, NumSum publishes challenges, knowledge, SOPs, competitions, and pilots only after review. Be part of the founding cohort by submitting the first real MSME challenge or joining as a contributor.</p><div className="mt-6 flex flex-wrap gap-3"><ProtectedLink href="/submit-problem" className="rounded-full bg-amber-100 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white">Submit MSME Challenge</ProtectedLink><Button href="/join" variant="secondary">Join as contributor</Button></div><div className="mt-8"><Suspense fallback={<LoadingState label="Loading public launch data" />}><PublicMetrics /></Suspense></div></Card></section>
     <section className="mx-auto max-w-7xl px-6 py-16"><Suspense fallback={<LoadingState label="Loading public highlights" />}><Highlights /></Suspense></section>
-    <section className="mx-auto max-w-7xl px-6 py-16"><h2 className="font-display text-4xl">Who Can Participate</h2><div className="mt-8 grid gap-4 md:grid-cols-3">{stakeholders.map(([title,text])=><Card key={title}><h3 className="text-xl font-semibold">{title}</h3><p className="mt-3 text-sm text-white/62">{text}</p></Card>)}</div></section>
-    <section className="mx-auto max-w-7xl px-6 py-20"><Card className="text-center"><h2 className="font-display text-4xl">Ready to structure a real MSME challenge?</h2><p className="mx-auto mt-4 max-w-2xl text-white/65">Start with a private challenge submission. NumSum Labs will keep review data private and publish only approved public-safe outputs.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><ProtectedLink href="/submit-problem" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black">Submit MSME Challenge</ProtectedLink><Button href="/join" variant="secondary">Create Profile / Join as Member</Button><Button href="/research" variant="secondary">Explore Knowledge & Research</Button><Button href="/competitions" variant="secondary">View Competitions</Button></div></Card></section>
+    <section className="mx-auto max-w-7xl px-6 py-20"><Card className="text-center"><h2 className="font-display text-4xl">Ready to structure a real MSME challenge?</h2><p className="mx-auto mt-4 max-w-2xl text-white/65">Start with a private challenge submission. NumSum Labs will keep review data private and publish only approved public-safe outputs.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><ProtectedLink href="/submit-problem" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black">Submit MSME Challenge</ProtectedLink><Button href="/join" variant="secondary">Create Profile / Join as Member</Button></div></Card></section>
   </main>;
 }
