@@ -96,18 +96,17 @@ export function AdminDashboardClient() {
     const finalSubmissions = data.submissions.filter((submission) => submission.status === "submitted" || submission.locked);
     const evaluatedIds = new Set(data.evaluations.filter((evaluation) => evaluation.status === "evaluated").map((evaluation) => evaluation.submissionId));
     return [
-      ["MSME owners", ownerCount],
-      ["Submitted problems", data.problems.length],
-      ["Under review", data.problems.filter((problem) => problem.status === "under_review" || problem.status === "submitted").length],
-      ["Onboarding active", data.problems.filter((problem) => problem.status === "onboarding_active").length],
-      ["Solved problems", data.problems.filter((problem) => problem.status === "solved").length],
-      ["Pending reviews", data.reviews.filter((review) => review.consentForPublicDisplay && !review.approvedForPublic && review.moderationStatus !== "rejected" && review.moderationStatus !== "hidden").length],
-      ["Active challenges", data.challenges.filter((challenge) => ["published", "open", "evaluation"].includes(challenge.status || "")).length],
-      ["Pending evaluations", finalSubmissions.filter((submission) => !evaluatedIds.has(submission.id)).length],
-      ["Pending team invites", data.invites.filter((invite) => invite.status === "pending").length],
-      ["Published case studies", data.caseStudies.length],
-      ["Community moderation", data.moderationItems.length],
-      ["Public clients gained", data.publicMetrics.totalClientsGained || 0],
+      ["MSME owners", ownerCount, "Members with MSME/company profile data"],
+      ["Submitted problems", data.problems.length, "All member problem records"],
+      ["Under review", data.problems.filter((problem) => problem.status === "under_review" || problem.status === "submitted").length, "Submitted or under-review problems"],
+      ["Onboarding active", data.problems.filter((problem) => problem.status === "onboarding_active").length, "Currently in MSME onboarding"],
+      ["Solved problems", data.problems.filter((problem) => problem.status === "solved").length, "Problems marked solved"],
+      ["Pending reviews", data.reviews.filter((review) => review.consentForPublicDisplay && !review.approvedForPublic && review.moderationStatus !== "rejected" && review.moderationStatus !== "hidden").length, "Public-review approvals needed"],
+      ["Active challenges", data.challenges.filter((challenge) => ["published", "open", "evaluation"].includes(challenge.status || "")).length, "Published/open/evaluation challenges"],
+      ["Pending evaluations", finalSubmissions.filter((submission) => !evaluatedIds.has(submission.id)).length, "Final submissions needing scoring"],
+      ["Published case studies", data.caseStudies.length, "Case study records available"],
+      ["Community moderation", data.moderationItems.length, "Open reports or moderation items"],
+      ["Public impact", `${data.publicMetrics.totalMonetarySavings || "0"} saved`, `${data.publicMetrics.totalTimeSaved || "0"} time · ${data.publicMetrics.totalWasteReduction || "0"} waste · ${data.publicMetrics.totalClientsGained || 0} clients`],
     ];
   }, [data]);
 
@@ -135,10 +134,11 @@ export function AdminDashboardClient() {
       </div>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(([label, value]) => (
+        {metrics.map(([label, value, detail]) => (
           <Card key={label} className="p-5">
             <p className="text-xs uppercase tracking-[.22em] text-blue-200">{label}</p>
             <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+            <p className="mt-2 text-xs text-white/50">{detail}</p>
           </Card>
         ))}
       </section>

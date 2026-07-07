@@ -80,7 +80,7 @@ export default function AdminReviewsPage() {
                   <span>{review.sector || "Sector pending"}</span>
                 </div>
                 <p className="mt-4 text-lg text-white">“{review.reviewText}”</p>
-                <p className="mt-3 text-sm text-white/60">{review.memberName || "Member"} · {review.membershipId || "No membership ID"} · {review.organizationName || "Organization not shared"}</p>
+                <p className="mt-3 text-sm text-white/60">{review.memberName || "Member"} · {review.membershipId || "No membership ID"} · {review.organizationName || "Organization not shared"}</p><p className="mt-1 text-sm text-white/50">Problem: {review.problemTitle || review.problemId || "Not linked"} · Public consent: {review.consentForPublicDisplay ? "yes" : "no"}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-blue-100/80">{(review.adminTags || []).map((tag) => <span key={tag} className="rounded-full bg-blue-400/10 px-3 py-1">#{tag}</span>)}</div>
               </div>
               <div className="rounded-2xl border border-white/10 p-4">
