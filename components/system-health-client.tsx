@@ -84,10 +84,12 @@ export function SystemHealthClient() {
       </section>
 
       <section>
-        <h2 className="font-display text-2xl">Storage and PDF status</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <CheckCard label="MOM/PDF generation" value="HTML preview ready" detail="PDF metadata is Firestore-ready; Storage upload is not claimed unless Firebase Storage is configured separately." />
-          <CheckCard label="Firebase Storage" value="configuration not asserted" detail="Meeting note PDFs can store fileUrl/storagePath when storage is enabled." />
+        <h2 className="font-display text-2xl">MOM/PDF status</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <CheckCard label="Structured notes" value={data.meetingNotes} detail="problem_meeting_notes is the source of truth." />
+          <CheckCard label="Web MOM rendering" value="available" detail="Admins and members view MOMs as system pages." />
+          <CheckCard label="PDF/download" value="print on demand" detail="Use browser Print / Save as PDF from the MOM page." />
+          <CheckCard label="Permanent file storage" value="not configured by design" detail="Storage not configured by design — PDFs are generated on demand." />
         </div>
       </section>
     </div>
