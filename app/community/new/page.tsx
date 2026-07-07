@@ -1,21 +1,21 @@
 import { AuthGate } from "@/components/auth-gate";
 import { NewDiscussionForm } from "@/components/discussion-actions";
 import { Card } from "@/components/ui";
-import { getAdminCompetitions, getAllProblemStatements, getTeamMembers, getAdminResearchItems } from "@/lib/repositories/firestore";
+import { getPublicChallenges, getAllProblemStatements, getTeamMembers, getPublicResearchItems } from "@/lib/repositories/firestore";
 import type { DiscussionScopeType } from "@/lib/types";
 
 type ScopeOption = { type: DiscussionScopeType; id: string; label: string };
 
 export default async function NewDiscussion() {
-  const [problems, competitions, teams, research] = await Promise.all([
+  const [problems, challenges, teams, research] = await Promise.all([
     getAllProblemStatements(100).catch(() => []),
-    getAdminCompetitions().catch(() => []),
+    getPublicChallenges().catch(() => []),
     getTeamMembers().catch(() => []),
-    getAdminResearchItems().catch(() => []),
+    getPublicResearchItems().catch(() => []),
   ]);
   const scopeOptions: ScopeOption[] = [
     ...problems.map((problem) => ({ type: "problem" as const, id: problem.id, label: problem.title || problem.id })),
-    ...competitions.map((competition) => ({ type: "competition" as const, id: competition.id, label: competition.title || competition.id })),
+    ...challenges.map((challenge) => ({ type: "competition" as const, id: challenge.id, label: challenge.title || challenge.id })),
     ...teams.map((member) => ({ type: "team" as const, id: member.id, label: member.name || member.designation || member.id })),
     ...research.map((item) => ({ type: "research" as const, id: item.id, label: item.title || item.id })),
   ];

@@ -1567,53 +1567,11 @@ export async function createCareerApplication(
   await notifyAdmins("career_application", "New Career Application", data.name);
   return created;
 }
-export async function createAdminApplication(
-  data: Omit<AdminApplication, "id" | "createdAt" | "status">,
-) {
-  const created = await createRecord<AdminApplication>(
-    COLLECTIONS.adminApplications,
-    {
-      ...data,
-      status: "pending",
-      createdAt: serverTimestamp(),
-    } as WithFieldValue<Omit<AdminApplication, "id">>,
-  );
-  await upsertRecord(COLLECTIONS.users, data.userId, {
-    role: data.requestedRole && data.requestedRole !== "admin" ? "member" : "pending_admin",
-    email: data.email,
-    name: data.name,
-    updatedAt: serverTimestamp(),
-  });
-  await routeToAdminInbox({
-    type: "role_request",
-    title: `New Role Request: ${data.name}`,
-    description: `${data.email} requested ${data.requestedRole || "admin"}`,
-    sourceCollection: COLLECTIONS.adminApplications,
-    sourceId: created.id,
-    createdBy: data.userId,
-  });
-  await notifyAdmins("role_request", "New Admin Applicant", data.name);
-  return created;
+export async function createAdminApplication(_data: Omit<AdminApplication, "id" | "createdAt" | "status">) {
+  throw new Error("Admin applications are deprecated. Every signup is a member; only super admins assign admins by membership ID.");
 }
-export async function reviewAdminApplication(
-  application: AdminApplication,
-  reviewerId: string,
-  status: "approved" | "rejected",
-) {
-  await updateRecord(COLLECTIONS.adminApplications, application.id, {
-    status,
-    reviewedBy: reviewerId,
-    reviewedAt: serverTimestamp(),
-  });
-  await updateRecord(COLLECTIONS.users, application.userId, {
-    role: status === "approved" ? application.requestedRole || "admin" : "member",
-  });
-  return logAudit({
-    actorId: reviewerId,
-    action: `admin_application_${status}`,
-    collectionName: COLLECTIONS.adminApplications,
-    documentId: application.id,
-  });
+export async function reviewAdminApplication(_application: AdminApplication, _reviewerId: string, _status: "approved" | "rejected") {
+  throw new Error("Admin applications are deprecated. Use super admin user management instead.");
 }
 export async function addChallengeReview(
   data: Omit<ChallengeReview, "id" | "createdAt">,
@@ -2843,7 +2801,7 @@ export async function createUserRoleRequest(_user: UserProfile, _requestedRole: 
   throw new Error("Role requests are deprecated. Every signup is a member; only super admins assign admins by membership ID.");
 }
 export async function reviewUserRoleRequest(requestId: string, decision: "approved" | "rejected", actor: UserProfile) {
-  if (actor.role !== "admin" && actor.role !== "super_admin") throw new Error("Admin access required.");
+  if (actor.role !== "super_admin") throw new Error("Super admin access required.");
   const request = await getRecord<any>(COLLECTIONS.userRoleRequests, requestId);
   if (!request) throw new Error("Role request not found.");
   if (decision === "approved") await updateUserRoleAndStatus(request.userId, { role: request.requestedRole }, actor);

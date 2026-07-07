@@ -13,7 +13,7 @@ service cloud.firestore {
     function isSuperAdmin() { return userRole() == 'super_admin'; }
     function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
     function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
-    function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['uid','displayName','name','fullName','email','phoneNumber','membershipId','photoURL','role','roles','primaryRole','status','memberStatus','authProvider','provider','createdAt','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
+    function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['uid','displayName','name','fullName','email','phoneNumber','photoURL','role','roles','primaryRole','status','memberStatus','authProvider','provider','createdAt','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
     function selfProfileRoleSafe() { return request.resource.data.role == resource.data.role || (!resource.data.keys().hasAny(['role']) && request.resource.data.role == 'member'); }
     function selfProfileStatusSafe() { return request.resource.data.status == resource.data.status || (!resource.data.keys().hasAny(['status']) && request.resource.data.status == 'active'); }
     function selfProfileRolesSafe() { return (!request.resource.data.diff(resource.data).changedKeys().hasAny(['roles']) || !request.resource.data.keys().hasAny(['roles']) || request.resource.data.roles == resource.data.roles || (!resource.data.keys().hasAny(['roles']) && containsOnlyMemberRoles(request.resource.data.roles))) && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['primaryRole']) || !request.resource.data.keys().hasAny(['primaryRole']) || request.resource.data.primaryRole == resource.data.primaryRole || (!resource.data.keys().hasAny(['primaryRole']) && request.resource.data.primaryRole == 'member')); }
@@ -95,10 +95,10 @@ service cloud.firestore {
     }
 
     match /admin_inbox/{id} { allow read, update, delete: if platformAdmin(); allow create: if signedIn(); }
-    match /user_role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if false; allow update, delete: if platformAdmin(); }
-    match /role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create: if false; allow update, delete: if platformAdmin(); }
+    match /user_role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create, update, delete: if false; }
+    match /role_requests/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.userId == request.auth.uid); allow create, update, delete: if false; }
 
-    match /admin_applications/{id} { allow read, update, delete: if platformAdmin(); allow create: if false; }
+    match /admin_applications/{id} { allow read: if platformAdmin(); allow create, update, delete: if false; }
 
     match /problem_statements/{id} {
       // Admins can manage all problem records. Public reads are restricted to published public summaries.
@@ -173,9 +173,9 @@ service cloud.firestore {
     match /collaboration_requests/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if platformAdmin() || (signedIn() && ownsIncoming()); allow update, delete: if platformAdmin() || ownsExisting(); }
 
     match /competitions/{id} { allow read: if platformAdmin() || publicChallengeStatus() || memberVisible(); allow create, update, delete: if platformAdmin(); }
-    match /competition_teams/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if isProfileCompleteUser() && ownsIncoming(); allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin() || ownsExisting(); }
-    match /competition_participations/{id} { allow read: if platformAdmin() || ownsExisting() || (signedIn() && resource.data.participantUserId == request.auth.uid); allow create: if isProfileCompleteUser() && request.resource.data.participantUserId == request.auth.uid; allow update: if platformAdmin() || ownsExisting(); allow delete: if platformAdmin(); }
-    match /competition_submissions/{id} { allow read: if platformAdmin() || ownsExisting(); allow create: if isProfileCompleteUser() && ownsIncoming() && !hasSensitiveAdminFields(); allow update: if (platformAdmin() && !hasSensitiveAdminFields()) || (ownsExisting() && resource.data.status == 'draft' && !hasSensitiveAdminFields()); allow delete: if platformAdmin(); }
+    match /competition_teams/{id} { allow read, write: if platformAdmin(); }
+    match /competition_participations/{id} { allow read, write: if platformAdmin(); }
+    match /competition_submissions/{id} { allow read, write: if platformAdmin(); }
     match /competition_evaluations/{id} { allow read, write: if platformAdmin(); }
     match /challenge_participations/{id} { allow read: if platformAdmin() || (signedIn() && resource.data.memberId == request.auth.uid); allow create: if isProfileCompleteUser() && request.resource.data.memberId == request.auth.uid && request.resource.data.status in ['registered','active']; allow update: if platformAdmin() || (signedIn() && resource.data.memberId == request.auth.uid && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','updatedAt']) && request.resource.data.status in ['registered','active','withdrawn']); allow delete: if platformAdmin(); }
     match /challenge_teams/{id} { allow read: if platformAdmin() || (signedIn() && (request.auth.uid in resource.data.memberIds || request.auth.uid in resource.data.acceptedMemberIds)); allow create: if isProfileCompleteUser() && request.resource.data.leaderMemberId == request.auth.uid && request.auth.uid in request.resource.data.memberIds && request.auth.uid in request.resource.data.acceptedMemberIds; allow update: if platformAdmin() || (signedIn() && (resource.data.leaderMemberId == request.auth.uid || request.auth.uid in resource.data.memberIds)); allow delete: if platformAdmin(); }
@@ -184,7 +184,7 @@ service cloud.firestore {
     match /challenge_evaluations/{id} { allow read: if platformAdmin(); allow create, update, delete: if platformAdmin(); }
     match /challenge_results/{id} { allow read: if platformAdmin() || (resource.data.approvedForPublic == true); allow create, update, delete: if platformAdmin(); }
 
-    match /competition_results/{id} { allow read: if platformAdmin() || (resource.data.visibility == 'public' && resource.data.status == 'published') || (signedIn() && resource.data.visibility == 'member_only' && resource.data.status in ['declared','published']); allow write: if platformAdmin(); }
+    match /competition_results/{id} { allow read, write: if platformAdmin(); }
 
     match /organizations/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update, delete: if platformAdmin(); }
     match /team_members/{id} { allow read: if platformAdmin(); allow create, update, delete: if platformAdmin(); }

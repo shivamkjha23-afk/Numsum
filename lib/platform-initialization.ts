@@ -8,7 +8,7 @@ const INIT_VERSION = 2;
 const INIT_STATUS_ID = "platform_initialization";
 const systemDocs = {
   platform: { name: "NumSum Labs Platform", status: "active", modules: PLATFORM_MODULES },
-  navigation: { primary: ["problem-statements", "research", "knowledge", "competitions", "msme-intelligence"], admin: ["dashboard", "inbox", "forms", "users", "system-health"] },
+  navigation: { primary: ["problem-statements", "research", "knowledge", "challenges", "msme-intelligence"], admin: ["dashboard", "inbox", "forms", "users", "system-health"] },
   community: { enabled: true, features: ["comments", "replies", "likes", "bookmarks", "reports"] },
   relationships: { enabled: true, supported: ["problem_statement", "research", "competition", "knowledge_asset", "organization"] },
 };
@@ -22,15 +22,9 @@ const settingsDocs = {
   teams: { enabled: true, allowEmailInvites: true },
 };
 const roleDefinitions = {
-  default: { label: "Default", permissions: ["read_public"] },
-  visitor: { label: "Visitor", permissions: ["read_public"] },
-  member: { label: "Member", permissions: ["read_public", "submit_problem", "join_competition"] },
-  reviewer: { label: "Reviewer", permissions: ["read_public", "review_assigned"] },
-  moderator: { label: "Moderator", permissions: ["read_public", "moderate_content"] },
-  organization: { label: "Organization", permissions: ["read_public", "submit_problem", "manage_organization_profile"] },
-  pending_admin: { label: "Pending Admin", permissions: ["read_public", "submit_problem"] },
-  admin: { label: "Admin", permissions: ["admin_dashboard", "moderate_content", "manage_competitions"] },
-  super_admin: { label: "Super Admin", permissions: ["admin_dashboard", "moderate_content", "manage_competitions", "manage_platform"] },
+  member: { label: "Member", permissions: ["read_public", "submit_problem", "join_challenge", "community_participation"] },
+  admin: { label: "Admin", permissions: ["admin_dashboard", "moderate_content", "manage_challenges", "manage_problems"] },
+  super_admin: { label: "Super Admin", permissions: ["admin_dashboard", "moderate_content", "manage_challenges", "manage_problems", "manage_platform", "manage_admins"] },
 };
 const questionnaireTemplates = {
   manufacturing: { category: "Manufacturing", name: "Manufacturing Problem Intake", questions: [{ id: "process", label: "Which process is affected?", type: "textarea", required: true }, { id: "impact", label: "What is the business impact?", type: "textarea", required: true }, { id: "constraints", label: "Known constraints", type: "textarea" }] },
@@ -90,7 +84,7 @@ const collectionSentinels: Array<[string, string, Patch]> = [
   [COLLECTIONS.problemStatements, "__schema", { schema: "problem_statements", visibility: "private" }],
   [COLLECTIONS.researchPosts, "__schema", { schema: "research_posts", visibility: "private" }],
   [COLLECTIONS.knowledgeAssets, "__schema", { schema: "knowledge_assets", visibility: "private" }],
-  [COLLECTIONS.competitions, "__schema", { schema: "competitions", status: "draft" }],
+  [COLLECTIONS.competitions, "__schema", { schema: "challenges", status: "draft" }],
   [COLLECTIONS.communityPosts, "__schema", { schema: "community_posts", visibility: "private" }],
   [COLLECTIONS.notifications, "__schema", { schema: "notifications" }],
   [COLLECTIONS.adminInbox, "__schema", { schema: "admin_inbox", status: "resolved" }],
