@@ -1,0 +1,2 @@
+import { AdminCaseStudyForm } from "@/components/admin-case-study-form";
+export default function NewCaseStudyPage(){return <main className="px-4 py-8 md:px-8"><div className="mx-auto max-w-5xl"><p className="text-sm uppercase tracking-[.28em] text-blue-300">New case study</p><h1 className="mt-3 font-display text-4xl md:text-5xl">Create Case Study</h1><p className="mt-3 text-white/60">Link a problem or challenge to autofill the story, then edit only the public-safe narrative.</p><section className="mt-6"><AdminCaseStudyForm/></section></div></main>}
