@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { Card } from "@/components/ui";
-import { createCaseStudyComment, getCaseStudyComments, getCaseStudyUpvote, toggleCaseStudyUpvote } from "@/lib/repositories/firestore";
+import { createCaseStudyComment, getApprovedCaseStudyComments, getCaseStudyUpvote, getMemberPendingCaseStudyComments, toggleCaseStudyUpvote } from "@/lib/repositories/firestore";
 import type { CaseStudyComment } from "@/lib/types";
 
 export function CaseStudyActions({ caseStudyId, title }: { caseStudyId: string; title: string }) {
@@ -13,7 +13,15 @@ export function CaseStudyActions({ caseStudyId, title }: { caseStudyId: string; 
   const [upvoted, setUpvoted] = useState(false);
   const [body, setBody] = useState("");
   const [message, setMessage] = useState("");
-  useEffect(() => { getCaseStudyComments(caseStudyId).then(setComments); if (user) getCaseStudyUpvote(caseStudyId, user.uid).then((v) => setUpvoted(Boolean(v))); }, [caseStudyId, user]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      getApprovedCaseStudyComments(caseStudyId),
+      user ? getMemberPendingCaseStudyComments(caseStudyId, user.uid) : Promise.resolve([]),
+    ]).then(([approved, pending]) => { if (active) setComments([...pending, ...approved]); });
+    if (user) getCaseStudyUpvote(caseStudyId, user.uid).then((v) => { if (active) setUpvoted(Boolean(v)); });
+    return () => { active = false; };
+  }, [caseStudyId, user]);
   function requireMemberAction(action: string) { if (!user) { requestAuth({ message: `Sign in to ${action} this case study.`, returnTo: window.location.pathname }); return false; } if (!profileComplete) { router.push(`/profile/complete?returnTo=${encodeURIComponent(window.location.pathname)}`); return false; } return true; }
   async function vote() { if (!requireMemberAction("upvote")) return; const next = await toggleCaseStudyUpvote(caseStudyId, user!.uid, profile?.membershipId); setUpvoted(next); setMessage(next ? `Thanks for upvoting “${title}”.` : "Upvote removed."); }
   async function comment() { if (!requireMemberAction("comment on")) return; if (body.trim().length < 4) return setMessage("Add a short comment first."); const saved = await createCaseStudyComment({ caseStudyId, memberId: user!.uid, membershipId: profile?.membershipId, memberName: profile?.fullName || profile?.name || user?.email || "Member", profileType: profile?.profileType, body: body.trim() }); setComments((rows) => [saved, ...rows]); setBody(""); setMessage("Comment saved for moderation."); }
