@@ -38,6 +38,12 @@ import type {
   CareerApplication,
   CareerOpening,
   ChallengeReview,
+  ChallengeParticipation,
+  ChallengeTeam,
+  ChallengeTeamInvite,
+  ChallengeSubmission,
+  ChallengeEvaluation,
+  ChallengeResult,
   CollaborationRequest,
   Bookmark,
   CommunityComment,
@@ -70,9 +76,16 @@ import type {
   PrivateCollaborationGroup,
   PlatformStatus,
   ProblemOnboardingSession,
+  ProblemMeetingNote,
+  ProblemPublicReview,
+  PublicImpactMetrics,
+  CaseStudyComment,
+  CaseStudyUpvote,
   ProblemStatement,
   QuestionnaireResponse,
   QuestionnaireTemplate,
+  ProblemQuestionnaireResponse,
+  ProblemMeetingNotePdf,
   ResearchPost,
   ResearchItem,
   SOPDocument,
@@ -118,6 +131,9 @@ export const COLLECTIONS = {
   pilotUpdates: "pilot_updates",
   pilotMetrics: "pilot_metrics",
   meetingLogs: "meeting_logs",
+  problemMeetingNotes: "problem_meeting_notes",
+  problemQuestionnaireResponses: "problem_questionnaire_responses",
+  problemMeetingNotePdfs: "problem_meeting_note_pdfs",
   linkedResources: "linked_resources",
   timelineEvents: "timeline_events",
   fileLinks: "file_links",
@@ -161,6 +177,9 @@ export const COLLECTIONS = {
   msmeCases: "msme_cases",
   privateCollaborationGroups: "private_collaboration_groups",
   comments: "comments",
+  problemPublicReviews: "problem_reviews_public",
+  caseStudyComments: "case_study_comments",
+  caseStudyUpvotes: "case_study_upvotes",
   replies: "replies",
   communityAnalytics: "community_analytics",
   competitionTeams: "competition_teams",
@@ -168,6 +187,12 @@ export const COLLECTIONS = {
   competitionParticipations: "competition_participations",
   competitionEvaluations: "competition_evaluations",
   competitionResults: "competition_results",
+  challengeParticipations: "challenge_participations",
+  challengeTeams: "challenge_teams",
+  challengeTeamInvites: "challenge_team_invites",
+  challengeSubmissions: "challenge_submissions",
+  challengeEvaluations: "challenge_evaluations",
+  challengeResults: "challenge_results",
   problemAdminMetadata: "problem_admin_metadata",
   onboardingAdminMetadata: "onboarding_admin_metadata",
   pilotAdminMetadata: "pilot_admin_metadata",
@@ -380,7 +405,17 @@ function authProvider(user: FirebaseUser) {
 }
 
 
-const PROTECTED_ROLES: Role[] = ["admin", "super_admin", "internal_member", "reviewer", "contributor"];
+function membershipNumberFromUid(uid: string) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i += 1) hash = (hash * 31 + uid.charCodeAt(i)) % 999999;
+  return String(hash + 1).padStart(6, "0");
+}
+
+export function generateMembershipId(uid: string) {
+  return `NSM-${membershipNumberFromUid(uid)}`;
+}
+
+const PROTECTED_ROLES: Role[] = ["admin", "super_admin"];
 const DEFAULT_MEMBER_ROLES: Role[] = ["member"];
 
 function hasProtectedRole(profile: Partial<UserProfile>) {
@@ -398,6 +433,7 @@ function defaultMemberProfile(user: FirebaseUser) {
     name: displayName,
     photoURL: user.photoURL || "",
     phoneNumber: user.phoneNumber || "",
+    membershipId: generateMembershipId(user.uid),
     roles: DEFAULT_MEMBER_ROLES,
     primaryRole: "member",
     role: "member",
@@ -435,7 +471,7 @@ export async function ensureUserProfile(
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
 
-  const roles = Array.isArray(existing.roles) ? existing.roles.filter(Boolean) as Role[] : [];
+  const roles = Array.isArray(existing.roles) ? existing.roles.filter((role): role is Role => DEFAULT_MEMBER_ROLES.includes(role as Role) || PROTECTED_ROLES.includes(role as Role)) : [];
   const preserveProtectedRoles = hasProtectedRole(existing);
   const patch: Record<string, unknown> = {};
   if (!existing.uid) patch.uid = user.uid;
@@ -445,6 +481,7 @@ export async function ensureUserProfile(
   if (!existing.fullName && user.displayName) patch.fullName = user.displayName;
   if (!existing.photoURL && user.photoURL) patch.photoURL = user.photoURL;
   if (!existing.phoneNumber && user.phoneNumber) patch.phoneNumber = user.phoneNumber;
+  if (!existing.membershipId) patch.membershipId = generateMembershipId(user.uid);
   if (!existing.authProvider) patch.authProvider = authProvider(user);
   if (!existing.provider) patch.provider = authProvider(user);
   if (!existing.createdAt) patch.createdAt = serverTimestamp();
@@ -452,8 +489,8 @@ export async function ensureUserProfile(
   if (!existing.memberStatus) patch.memberStatus = existing.profileComplete ? "active" : "pending_profile_completion";
   if (roles.length === 0) patch.roles = DEFAULT_MEMBER_ROLES;
   const fallbackPrimaryRole = preserveProtectedRoles ? roles[0] : "member";
-  if (!existing.primaryRole) patch.primaryRole = fallbackPrimaryRole;
-  if (!existing.role && !preserveProtectedRoles) patch.role = "member";
+  if (!existing.primaryRole || !(DEFAULT_MEMBER_ROLES.includes(existing.primaryRole) || PROTECTED_ROLES.includes(existing.primaryRole))) patch.primaryRole = fallbackPrimaryRole;
+  if (!existing.role || !(DEFAULT_MEMBER_ROLES.includes(existing.role) || PROTECTED_ROLES.includes(existing.role))) patch.role = fallbackPrimaryRole;
   if (existing.profileComplete === undefined) patch.profileComplete = false;
 
   if (Object.keys(patch).length > 0) {
@@ -470,24 +507,19 @@ export async function ensureUserProfile(
     ...patch,
     uid: existing.uid || user.uid,
     email: existing.email || user.email || "",
-    roles: roles.length ? roles : DEFAULT_MEMBER_ROLES,
-    primaryRole: existing.primaryRole || (patch.primaryRole as Role | undefined) || roles[0] || "member",
-    role: existing.role || existing.primaryRole || roles[0] || "member",
+    membershipId: existing.membershipId || (patch.membershipId as string | undefined) || generateMembershipId(user.uid),
+    roles: roles.length ? roles.filter((role) => DEFAULT_MEMBER_ROLES.includes(role) || PROTECTED_ROLES.includes(role)) : DEFAULT_MEMBER_ROLES,
+    primaryRole: (patch.primaryRole as Role | undefined) || (DEFAULT_MEMBER_ROLES.includes(existing.primaryRole as Role) || PROTECTED_ROLES.includes(existing.primaryRole as Role) ? existing.primaryRole : undefined) || roles[0] || "member",
+    role: (patch.role as Role | undefined) || (DEFAULT_MEMBER_ROLES.includes(existing.role as Role) || PROTECTED_ROLES.includes(existing.role as Role) ? existing.role : undefined) || roles[0] || "member",
     profileComplete: existing.profileComplete ?? false,
   } as UserProfile;
 }
 
 
-export const organizationProfileTypes = [
-  "msme_owner",
-  "msme_representative",
-  "industrialist",
-  "academic_institution_representative",
-  "government_incubator_association",
-] as const;
+export const organizationProfileTypes = ["msme_owner"] as const;
 export const academicProfileTypes = ["researcher", "student"] as const;
-export const professionalProfileTypes = ["engineer_professional", "consultant"] as const;
-export const startupProfileTypes = ["startup_founder", "technology_provider"] as const;
+export const professionalProfileTypes = ["engineer_professional", "consultant_industry_expert"] as const;
+export const startupProfileTypes = ["startup_technology_provider"] as const;
 
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
@@ -688,9 +720,15 @@ export async function getQuestionnaireByType(category: string) {
   );
   return rows[0] || null;
 }
+
+export async function getActiveQuestionnaireForSector(sector: string, usageType: QuestionnaireTemplate["usageType"] = "problem_submission") {
+  const rows = await listCollection<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, [where("status", "==", "active"), where("usageType", "==", usageType), limit(100)]).catch(() => []);
+  const normalized = sector.trim().toLowerCase();
+  return rows.find((row) => String(row.sector || row.category || row.industrySegment || "").toLowerCase() == normalized) || rows.find((row) => String(row.sector || row.category || "").toLowerCase() == "other") || null;
+}
 export async function createQuestionnaireTemplate(data: Omit<QuestionnaireTemplate, "id" | "createdAt" | "updatedAt">) {
   const sections = data.sections || [{ id: "default", title: data.title || data.name || "Questions", description: data.description || "", order: 1, questions: data.questions || [] }];
-  return createRecord<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, { ...data, title: data.title || data.name || data.category, name: data.name || data.title || data.category, questions: data.questions || sections.flatMap((section) => section.questions), sections, status: data.status || "draft", visibility: "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireTemplate, "id">>);
+  return createRecord<QuestionnaireTemplate>(COLLECTIONS.questionnaireTemplates, { ...data, title: data.title || data.name || data.category, name: data.name || data.title || data.category, sector: data.sector || String(data.category || data.industrySegment || "Other"), usageType: data.usageType || "onboarding_meeting", questions: data.questions || sections.flatMap((section) => section.questions), sections, status: data.status || "draft", visibility: data.visibility || "admin_only", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as WithFieldValue<Omit<QuestionnaireTemplate, "id">>);
 }
 export async function updateQuestionnaireTemplate(id: string, patch: Partial<QuestionnaireTemplate>) {
   await updateRecord(COLLECTIONS.questionnaireTemplates, id, { ...patch, updatedAt: serverTimestamp() });
@@ -842,6 +880,33 @@ export async function archiveCompetition(competition: Competition, userId: strin
 export async function linkCompetitionToProblem(competitionId: string, problemStatementId: string, userId: string) { const comp = await getRecord<Competition>(COLLECTIONS.competitions, competitionId); await updateRecord(COLLECTIONS.competitions, competitionId, { linkedProblemStatementId: problemStatementId, sourceProblemId: problemStatementId, sourceType: "problem_statement", sourceId: problemStatementId, updatedBy: userId, updatedAt: serverTimestamp() }); await updateDoc(doc(db, COLLECTIONS.problemStatements, problemStatementId), { competitionIds: arrayUnion(competitionId), linkedResources: arrayUnion({ type: "competition", resourceType: "competition", resourceId: competitionId, title: comp?.title || competitionId, collection: COLLECTIONS.competitions, linkedAt: new Date().toISOString(), linkedBy: userId }), updatedAt: serverTimestamp() }); await createRecord<TimelineEvent>(COLLECTIONS.timelineEvents, { problemStatementId, eventType: "competition_linked", title: `Competition linked: ${comp?.title || competitionId}`, actorUserId: userId, visibility: "member_only", createdAt: serverTimestamp() } as never); }
 export async function unlinkCompetitionFromProblem(competitionId: string, problemStatementId: string, userId: string) { await updateRecord(COLLECTIONS.competitions, competitionId, { linkedProblemStatementId: null, sourceProblemId: null, updatedBy: userId, updatedAt: serverTimestamp() } as never); await updateDoc(doc(db, COLLECTIONS.problemStatements, problemStatementId), { competitionIds: arrayRemove(competitionId), updatedAt: serverTimestamp() }); }
 
+
+
+export const getAdminChallenges = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [limit(500)]).catch(() => []));
+export async function createAdminChallenge(data: Partial<Competition>, actorId: string) { const payload = { ...data, title: data.title || "Untitled challenge", slug: data.slug || String(data.title || "challenge").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), visibility: data.visibility || "public", status: data.status || "draft", createdBy: actorId, updatedBy: actorId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }; return createRecord<Competition>(COLLECTIONS.competitions, payload as never); }
+export async function updateAdminChallenge(id: string, patch: Partial<Competition>, actorId: string) { return updateRecord(COLLECTIONS.competitions, id, { ...patch, updatedBy: actorId, updatedAt: serverTimestamp() } as Record<string, unknown>); }
+export const getChallengeEvaluations = cache(async (challengeId: string) => listCollection<ChallengeEvaluation>(COLLECTIONS.challengeEvaluations, [where("challengeId", "==", challengeId), limit(200)]).catch(() => []));
+export const getChallengeResults = cache(async (challengeId: string) => listCollection<ChallengeResult>(COLLECTIONS.challengeResults, [where("challengeId", "==", challengeId), limit(10)]).catch(() => []));
+export async function upsertChallengeEvaluation(data: Omit<ChallengeEvaluation, "id" | "createdAt" | "updatedAt"> & { id?: string }) { const payload = { ...data, updatedAt: serverTimestamp() }; if (data.id) { await updateRecord(COLLECTIONS.challengeEvaluations, data.id, payload as Record<string, unknown>); return { ...data, id: data.id } as ChallengeEvaluation; } const ref = await createRecord<ChallengeEvaluation>(COLLECTIONS.challengeEvaluations, { ...payload, createdAt: serverTimestamp() } as never); return { ...data, id: ref.id } as ChallengeEvaluation; }
+export async function declareChallengeResult(data: Omit<ChallengeResult, "id" | "createdAt" | "updatedAt" | "declaredAt">) { const ref = await createRecord<ChallengeResult>(COLLECTIONS.challengeResults, { ...data, approvedForPublic: true, declaredAt: serverTimestamp(), createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); await updateRecord(COLLECTIONS.competitions, data.challengeId, { status: "results_declared", winnerSubmissionId: data.winnerSubmissionId || "", winningTeamId: data.winnerTeamId || "", updatedAt: serverTimestamp() }); return { ...data, id: ref.id, approvedForPublic: true } as ChallengeResult; }
+export const getChallengeById = cache(async (id: string) => getRecord<Competition>(COLLECTIONS.competitions, id));
+export const getChallengeBySlug = cache(async (slug: string) => (await listCollection<Competition>(COLLECTIONS.competitions, [where("slug", "==", slug), limit(1)]).catch(() => []))[0] || null);
+export const getPublicChallenges = cache(async () => listCollection<Competition>(COLLECTIONS.competitions, [where("visibility", "==", "public"), where("status", "in", ["published", "open", "registration_closed", "submission_closed", "evaluation", "results_declared"]), limit(100)]).catch(() => []));
+export async function findUserByMembershipId(membershipId: string) { return (await listCollection<UserProfile>(COLLECTIONS.users, [where("membershipId", "==", membershipId.trim().toUpperCase()), limit(1)]).catch(() => []))[0] || null; }
+export async function createChallengeParticipation(data: Omit<ChallengeParticipation, "id" | "createdAt" | "updatedAt">) { const ref = await createRecord<ChallengeParticipation>(COLLECTIONS.challengeParticipations, { ...data, status: data.status || "registered", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { id: ref.id, ...data, status: data.status || "registered" } as ChallengeParticipation; }
+export const getMyChallengeParticipations = cache(async (memberId: string) => listCollection<ChallengeParticipation>(COLLECTIONS.challengeParticipations, [where("memberId", "==", memberId), limit(100)]).catch(() => []));
+export const getChallengeParticipations = cache(async (challengeId: string) => listCollection<ChallengeParticipation>(COLLECTIONS.challengeParticipations, [where("challengeId", "==", challengeId), limit(200)]).catch(() => []));
+export async function getMyChallengeParticipation(challengeId: string, memberId: string) { return (await listCollection<ChallengeParticipation>(COLLECTIONS.challengeParticipations, [where("challengeId", "==", challengeId), where("memberId", "==", memberId), limit(1)]).catch(() => []))[0] || null; }
+export async function createChallengeTeam(data: Omit<ChallengeTeam, "id" | "createdAt" | "updatedAt">) { const payload = { ...data, memberIds: Array.from(new Set(data.memberIds || [data.leaderMemberId])), acceptedMemberIds: Array.from(new Set(data.acceptedMemberIds || [data.leaderMemberId])), memberMembershipIds: Array.from(new Set(data.memberMembershipIds || [data.leaderMembershipId || ""].filter(Boolean))), invitedMembershipIds: data.invitedMembershipIds || [], rejectedMemberIds: data.rejectedMemberIds || [], status: data.status || "active" } as ChallengeTeam; const ref = await createRecord<ChallengeTeam>(COLLECTIONS.challengeTeams, { ...payload, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { ...payload, id: ref.id } as ChallengeTeam; }
+export const getMyChallengeTeams = cache(async (memberId: string) => listCollection<ChallengeTeam>(COLLECTIONS.challengeTeams, [where("memberIds", "array-contains", memberId), limit(100)]).catch(() => []));
+export const getTeamsForChallenge = cache(async (challengeId: string) => listCollection<ChallengeTeam>(COLLECTIONS.challengeTeams, [where("challengeId", "==", challengeId), limit(100)]).catch(() => []));
+export async function createChallengeTeamInvite(data: Omit<ChallengeTeamInvite, "id" | "createdAt" | "updatedAt" | "respondedAt">) { return createRecord<ChallengeTeamInvite>(COLLECTIONS.challengeTeamInvites, { ...data, status: data.status || "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); }
+export const getPendingChallengeInvitesForMember = cache(async (memberId: string) => listCollection<ChallengeTeamInvite>(COLLECTIONS.challengeTeamInvites, [where("invitedMemberId", "==", memberId), where("status", "==", "pending"), limit(100)]).catch(() => []));
+export async function respondToChallengeInvite(invite: ChallengeTeamInvite, status: "accepted" | "rejected", memberId: string) { if (invite.invitedMemberId !== memberId) throw new Error("You can only respond to your own invite."); await updateRecord(COLLECTIONS.challengeTeamInvites, invite.id, { status, respondedAt: serverTimestamp() }); const team = await getRecord<ChallengeTeam>(COLLECTIONS.challengeTeams, invite.teamId); if (team) await updateRecord(COLLECTIONS.challengeTeams, invite.teamId, status === "accepted" ? { memberIds: arrayUnion(memberId), acceptedMemberIds: arrayUnion(memberId), memberMembershipIds: arrayUnion(invite.invitedMembershipId), updatedAt: serverTimestamp() } : { rejectedMemberIds: arrayUnion(memberId), updatedAt: serverTimestamp() }); }
+export async function createOrUpdateChallengeSubmission(data: Omit<ChallengeSubmission, "id" | "createdAt" | "updatedAt"> & { id?: string }) { const payload = { ...data, evidenceLinks: data.evidenceLinks || [], locked: data.status === "submitted" ? true : Boolean(data.locked), evaluationStatus: data.evaluationStatus || "pending", resultApproved: data.resultApproved || false, ...(data.status === "submitted" ? { submittedAt: serverTimestamp() } : {}), updatedAt: serverTimestamp() }; if (data.id) { await updateRecord(COLLECTIONS.challengeSubmissions, data.id, payload as Record<string, unknown>); return { ...data, id: data.id } as ChallengeSubmission; } const ref = await createRecord<ChallengeSubmission>(COLLECTIONS.challengeSubmissions, { ...payload, createdAt: serverTimestamp() } as never); return { ...data, id: ref.id } as ChallengeSubmission; }
+export const getMyChallengeSubmissions = cache(async (memberId: string) => listCollection<ChallengeSubmission>(COLLECTIONS.challengeSubmissions, [where("submittedByMemberId", "==", memberId), limit(100)]).catch(() => []));
+export const getSubmissionsForTeam = cache(async (teamId: string) => listCollection<ChallengeSubmission>(COLLECTIONS.challengeSubmissions, [where("teamId", "==", teamId), limit(20)]).catch(() => []));
+
 export const getInternalThreads = cache(async () =>
   listCollection<InternalThread>(COLLECTIONS.internalThreads, [
     orderBy("createdAt", "desc"),
@@ -860,6 +925,109 @@ export const getCareerOpenings = cache(async () =>
     ]),
   ),
 );
+
+
+export async function createMemberProblemStatement(data: Omit<ProblemStatement, "id" | "createdAt" | "updatedAt"> & { status: "draft" | "submitted" }) {
+  if (!data.title?.trim()) throw new Error("Problem title is required.");
+  const memberId = data.memberId || data.submittedByUserId || data.createdBy || data.submittedBy || data.submitterId || "";
+  if (!memberId) throw new Error("Member ID is required.");
+  const isSubmitted = data.status === "submitted";
+  const evidenceLinks = data.evidenceLinks || data.attachmentsOrDriveLinks || data.attachments || [];
+  const payload = {
+    ...data,
+    category: data.category || data.sector || "Other",
+    industrySegment: data.industrySegment || data.sector || "",
+    shortDescription: data.shortDescription || data.summary || "",
+    description: data.summary || data.shortDescription || "",
+    detailedDescription: data.detailedDescription || data.problemDescription || data.summary || "",
+    problemDescription: data.problemDescription || data.detailedDescription || data.summary || "",
+    questionnaireAnswers: data.questionnaireAnswers || {},
+    questionnaireResponses: data.questionnaireAnswers || data.questionnaireResponses || {},
+    impactEstimate: data.impactEstimate || {},
+    impactMetrics: data.impactMetrics || { isPublic: false },
+    adminVisibilityFlags: data.adminVisibilityFlags || { meetingNotesVisibleToMemberDefault: false },
+    evidenceLinks,
+    attachmentsOrDriveLinks: evidenceLinks,
+    attachments: evidenceLinks,
+    memberId,
+    createdBy: data.createdBy || memberId,
+    submittedBy: data.submittedBy || memberId,
+    submittedByUserId: memberId,
+    submitterId: data.submitterId || memberId,
+    ownerIds: Array.from(new Set([memberId, ...(data.ownerIds || [])].filter(Boolean))),
+    status: data.status,
+    adminReviewStatus: data.status,
+    visibility: data.visibility || "submitter_only",
+    priority: data.priority || data.urgency || "medium",
+    onboardingSessionIds: data.onboardingSessionIds || [],
+    questionnaireResponseIds: data.questionnaireResponseIds || [],
+    sopIds: data.sopIds || [],
+    knowledgeAssetIds: data.knowledgeAssetIds || [],
+    researchItemIds: data.researchItemIds || [],
+    pilotTrackIds: data.pilotTrackIds || [],
+    meetingLogIds: data.meetingLogIds || [],
+    competitionIds: data.competitionIds || [],
+    discussionPostIds: data.discussionPostIds || [],
+    linkedResources: data.linkedResources || [],
+    ...(isSubmitted ? { submittedAt: serverTimestamp() } : {}),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const created = await createRecord<ProblemStatement>(COLLECTIONS.problemStatements, payload as WithFieldValue<Omit<ProblemStatement, "id">>);
+  if (isSubmitted) {
+    await bumpStats("problemStatementCount");
+    await routeToAdminInbox({ type: "problem_submission", title: data.title, description: payload.summary || payload.shortDescription, sourceCollection: COLLECTIONS.problemStatements, sourceId: created.id, createdBy: memberId });
+    await logAudit({ actorId: memberId, action: "problem_submitted", collectionName: COLLECTIONS.problemStatements, documentId: created.id, after: { status: "submitted", visibility: "submitter_only" } });
+    await createProblemTimelineEvent(created.id, "problem_submitted", "Problem submitted", memberId, { title: data.title }, "submitter_only");
+    await createNotification({ userId: memberId, type: "problem_submission", title: "Problem statement submitted", message: data.title, problemStatementId: created.id });
+    await notifyAdmins("problem_submission", "New MSME Problem Submitted", data.title, created.id);
+  }
+  return created;
+}
+
+export async function updateMemberDraftProblemStatement(id: string, data: Partial<ProblemStatement> & { status?: "draft" | "submitted" }, actorId: string) {
+  const current = await getProblemStatementById(id);
+  if (!current) throw new Error("Problem not found.");
+  if (current.status !== "draft") throw new Error("Only draft problems can be edited by members.");
+  if (![current.memberId, current.submittedByUserId, current.createdBy, current.submitterId].includes(actorId)) throw new Error("You can only edit your own draft problems.");
+  const isSubmitted = data.status === "submitted";
+  const patch: Partial<ProblemStatement> = { ...data, updatedAt: serverTimestamp() as never, adminReviewStatus: data.status || current.adminReviewStatus, ...(isSubmitted ? { submittedAt: serverTimestamp() as never } : {}) };
+  await updateRecord(COLLECTIONS.problemStatements, id, patch as Record<string, unknown>);
+  if (isSubmitted) {
+    await routeToAdminInbox({ type: "problem_submission", title: data.title || current.title, description: data.summary || current.summary, sourceCollection: COLLECTIONS.problemStatements, sourceId: id, createdBy: actorId });
+    await createProblemTimelineEvent(id, "problem_submitted", "Problem submitted", actorId, { title: data.title || current.title }, "submitter_only");
+    await notifyAdmins("problem_submission", "New MSME Problem Submitted", data.title || current.title, id);
+  }
+}
+
+export const getMemberVisibleProblemMeetingNotes = cache(async (problemId: string) =>
+  listCollection<ProblemMeetingNote>(COLLECTIONS.problemMeetingNotes, [where("problemId", "==", problemId), where("visibleToMember", "==", true), limit(100)]).catch(() => []),
+);
+
+
+export const demoImpactMetrics: PublicImpactMetrics = { totalProblemsSubmitted: 48, totalProblemsSolved: 9, totalChallengesLaunched: 7, totalChallengeParticipants: 126, totalCaseStudiesPublished: 4, totalCommunityPosts: 38, totalMonetarySavings: "₹18.4L", totalTimeSaved: "1,240 hrs", totalWasteReduction: "11.8%", totalProductivityGain: "14.5%", totalClientsGained: 23, totalPublicReviews: 6 };
+export async function getPublicProblemReviews() { return listCollection<ProblemPublicReview>(COLLECTIONS.problemPublicReviews, [where("approvedForPublic", "==", true), limit(20)]).catch(() => []); }
+export const getProblemReviewsForMember = cache(async (memberId: string) => listCollection<ProblemPublicReview>(COLLECTIONS.problemPublicReviews, [where("memberId", "==", memberId), limit(100)]).catch(() => []));
+export async function getProblemReviewForMember(problemId: string, memberId: string) { return (await listCollection<ProblemPublicReview>(COLLECTIONS.problemPublicReviews, [where("problemId", "==", problemId), where("memberId", "==", memberId), limit(1)]).catch(() => []))[0] || null; }
+export async function upsertProblemPublicReview(data: Omit<ProblemPublicReview, "id" | "createdAt" | "updatedAt" | "approvedForPublic" | "adminTags"> & { id?: string }) { const payload = { ...data, approvedForPublic: false, adminTags: [], updatedAt: serverTimestamp() }; if (data.id) { await updateRecord(COLLECTIONS.problemPublicReviews, data.id, payload as Record<string, unknown>); return { ...data, id: data.id, approvedForPublic: false, adminTags: [] } as ProblemPublicReview; } const ref = await createRecord<ProblemPublicReview>(COLLECTIONS.problemPublicReviews, { ...payload, createdAt: serverTimestamp() } as never); return { ...data, id: ref.id, approvedForPublic: false, adminTags: [] } as ProblemPublicReview; }
+export async function getCaseStudyComments(caseStudyId: string) { return listCollection<CaseStudyComment>(COLLECTIONS.caseStudyComments, [where("caseStudyId", "==", caseStudyId), where("status", "in", ["approved", "pending"]), limit(100)]).catch(() => []); }
+export async function createCaseStudyComment(data: Omit<CaseStudyComment, "id" | "createdAt" | "updatedAt" | "status">) { const ref = await createRecord<CaseStudyComment>(COLLECTIONS.caseStudyComments, { ...data, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { ...data, id: ref.id, status: "pending" } as CaseStudyComment; }
+export async function getCaseStudyUpvote(caseStudyId: string, memberId: string) { return (await listCollection<CaseStudyUpvote>(COLLECTIONS.caseStudyUpvotes, [where("caseStudyId", "==", caseStudyId), where("memberId", "==", memberId), limit(1)]).catch(() => []))[0] || null; }
+export async function toggleCaseStudyUpvote(caseStudyId: string, memberId: string, membershipId?: string) { const existing = await getCaseStudyUpvote(caseStudyId, memberId); if (existing) { await deleteRecord(COLLECTIONS.caseStudyUpvotes, existing.id); return false; } await createRecord<CaseStudyUpvote>(COLLECTIONS.caseStudyUpvotes, { caseStudyId, memberId, membershipId, createdAt: serverTimestamp() } as never); return true; }
+export async function getPublicImpactMetrics(): Promise<PublicImpactMetrics> { const [problems, solved, challenges, participants, cases, posts, reviews] = await Promise.all([listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [limit(200)]).catch(() => []), listCollection<ProblemStatement>(COLLECTIONS.problemStatements, [where("status", "==", "solved"), limit(100)]).catch(() => []), getPublicChallenges().catch(() => []), listCollection<ChallengeParticipation>(COLLECTIONS.challengeParticipations, [limit(500)]).catch(() => []), listCollection(COLLECTIONS.msmeCases, [where("visibility", "==", "public"), limit(100)]).catch(() => []), listPublicDiscussionThreads().catch(() => []), getPublicProblemReviews().catch(() => [])]); const publicMetrics = problems.map((p) => p.impactMetrics).filter((m) => m?.isPublic); return { ...demoImpactMetrics, totalProblemsSubmitted: Math.max(problems.length, demoImpactMetrics.totalProblemsSubmitted), totalProblemsSolved: Math.max(solved.length, demoImpactMetrics.totalProblemsSolved), totalChallengesLaunched: Math.max(challenges.length, demoImpactMetrics.totalChallengesLaunched), totalChallengeParticipants: Math.max(participants.length, demoImpactMetrics.totalChallengeParticipants), totalCaseStudiesPublished: Math.max(cases.length, demoImpactMetrics.totalCaseStudiesPublished), totalCommunityPosts: Math.max(posts.length, demoImpactMetrics.totalCommunityPosts), totalPublicReviews: Math.max(reviews.length, demoImpactMetrics.totalPublicReviews), totalClientsGained: Math.max(publicMetrics.reduce((sum, m) => sum + Number(m?.clientsGained || 0), 0), demoImpactMetrics.totalClientsGained) }; }
+
+
+
+export const getProblemQuestionnaireResponsesAdmin = cache(async (problemId: string) => listCollection<ProblemQuestionnaireResponse>(COLLECTIONS.problemQuestionnaireResponses, [where("problemId", "==", problemId), limit(100)]).catch(() => []));
+export const getMemberVisibleProblemQuestionnaireResponses = cache(async (problemId: string) => listCollection<ProblemQuestionnaireResponse>(COLLECTIONS.problemQuestionnaireResponses, [where("problemId", "==", problemId), where("visibleToMember", "==", true), limit(100)]).catch(() => []));
+export async function createProblemQuestionnaireResponse(data: Omit<ProblemQuestionnaireResponse, "id" | "createdAt" | "updatedAt">) { const ref = await createRecord<ProblemQuestionnaireResponse>(COLLECTIONS.problemQuestionnaireResponses, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { ...data, id: ref.id } as ProblemQuestionnaireResponse; }
+export const getProblemMeetingNotePdfsAdmin = cache(async (problemId: string) => listCollection<ProblemMeetingNotePdf>(COLLECTIONS.problemMeetingNotePdfs, [where("problemId", "==", problemId), limit(100)]).catch(() => []));
+export const getMemberVisibleProblemMeetingNotePdfs = cache(async (problemId: string) => listCollection<ProblemMeetingNotePdf>(COLLECTIONS.problemMeetingNotePdfs, [where("problemId", "==", problemId), where("visibleToMember", "==", true), limit(100)]).catch(() => []));
+export async function createProblemMeetingNotePdf(data: Omit<ProblemMeetingNotePdf, "id" | "createdAt" | "updatedAt">) { const ref = await createRecord<ProblemMeetingNotePdf>(COLLECTIONS.problemMeetingNotePdfs, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { ...data, id: ref.id } as ProblemMeetingNotePdf; }
+export const getProblemMeetingNotesAdmin = cache(async (problemId: string) => listCollection<ProblemMeetingNote>(COLLECTIONS.problemMeetingNotes, [where("problemId", "==", problemId), limit(100)]).catch(() => []));
+export async function createProblemMeetingNote(data: Omit<ProblemMeetingNote, "id" | "createdAt" | "updatedAt">) { const ref = await createRecord<ProblemMeetingNote>(COLLECTIONS.problemMeetingNotes, { ...data, title: data.meetingTitle || data.title || "Meeting note", createdByAdminId: data.createdByAdminId || data.adminId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as never); return { ...data, id: ref.id } as ProblemMeetingNote; }
+export async function updateProblemImpactMetrics(problemId: string, impactMetrics: ProblemStatement["impactMetrics"], actorId: string) { await updateRecord(COLLECTIONS.problemStatements, problemId, { impactMetrics, updatedAt: serverTimestamp() }); await logAudit({ actorId, action: "problem_impact_metrics_updated", collectionName: COLLECTIONS.problemStatements, documentId: problemId, after: impactMetrics as never }); }
+export async function moderateProblemPublicReview(reviewId: string, patch: Pick<ProblemPublicReview, "approvedForPublic" | "adminTags"> & { reviewedBy?: string }) { return updateRecord(COLLECTIONS.problemPublicReviews, reviewId, { ...patch, updatedAt: serverTimestamp() }); }
 
 export async function createProblemStatement(
   data: Omit<
@@ -2656,11 +2824,8 @@ export async function getContributionMetrics(userId?: string) { const [records, 
 
 export const getUserRoleRequests = cache(async () => listCollection<any>(COLLECTIONS.userRoleRequests, [limit(500)]));
 export const getMyUserRoleRequests = cache(async (userId: string) => listCollection<any>(COLLECTIONS.userRoleRequests, [where("userId", "==", userId), limit(50)]));
-export async function createUserRoleRequest(user: UserProfile, requestedRole: Role, reason: string) {
-  const safeElevated: Role[] = ["submitter", "contributor", "researcher", "msme_representative", "internal_member"];
-  if (!user.uid) throw new Error("Sign in required.");
-  if (!safeElevated.includes(requestedRole)) throw new Error("This role requires admin assignment.");
-  return createRecord<any>(COLLECTIONS.userRoleRequests, { userId: user.uid, email: user.email || "", displayName: user.displayName || user.name || "", currentRole: user.role || "member", requestedRole, reason, status: "pending", createdAt: serverTimestamp(), updatedAt: serverTimestamp() } as any);
+export async function createUserRoleRequest(_user: UserProfile, _requestedRole: Role, _reason: string) {
+  throw new Error("Role requests are deprecated. Every signup is a member; only super admins assign admins by membership ID.");
 }
 export async function reviewUserRoleRequest(requestId: string, decision: "approved" | "rejected", actor: UserProfile) {
   if (actor.role !== "admin" && actor.role !== "super_admin") throw new Error("Admin access required.");

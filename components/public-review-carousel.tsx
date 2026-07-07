@@ -1,0 +1,9 @@
+import { Card } from "@/components/ui";
+import { getPublicProblemReviews } from "@/lib/repositories/firestore";
+const fallback = [
+  { id: "demo-1", rating: 5, reviewText: "NumSum helped us structure the shop-floor issue clearly before looking for a solution.", sector: "Manufacturing", problemTitle: "Process downtime", createdAt: new Date(Date.now() - 12*864e5).toISOString() },
+  { id: "demo-2", rating: 4.5, reviewText: "The challenge format brought practical ideas and gave our team a measurable next step.", sector: "Packaging", problemTitle: "Packaging wastage", createdAt: new Date(Date.now() - 21*864e5).toISOString() },
+  { id: "demo-3", rating: 5, reviewText: "Meeting notes, questions, and action tracking made the improvement journey easier to follow.", sector: "Food processing", problemTitle: "Quality rejections", createdAt: new Date(Date.now() - 32*864e5).toISOString() },
+];
+function age(value: unknown) { const d = value && typeof value === "object" && "toDate" in value ? (value as { toDate: () => Date }).toDate() : new Date(String(value || Date.now())); const days = Math.max(1, Math.round((Date.now() - d.getTime()) / 864e5)); return `feedback given ${days} days ago`; }
+export async function PublicReviewCarousel() { const live = await getPublicProblemReviews().catch(() => []); const rows = live.length ? live : fallback; return <section><h2 className="font-display text-4xl">MSME reviews</h2><p className="mt-3 max-w-3xl text-white/60">Approved public feedback from solved MSME problem workflows.</p><div className="mt-6 flex gap-4 overflow-x-auto pb-3">{rows.map((r) => <Card key={r.id} className="min-w-[280px] max-w-sm"><p className="text-amber-100">★ {r.rating}/5</p><p className="mt-3 text-white/72">“{r.reviewText}”</p><p className="mt-4 text-sm text-blue-200">{r.sector || "MSME"} · {r.problemTitle || "Problem solved"}</p><p className="mt-1 text-xs text-white/45">{age(r.createdAt)}</p></Card>)}</div></section>; }

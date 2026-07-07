@@ -1,0 +1,7 @@
+import { Button, Card } from "@/components/ui";
+import { getPublicCaseStudies } from "@/lib/case-studies";
+
+export default async function CaseStudiesPage() {
+  const items = await getPublicCaseStudies();
+  return <main className="min-h-screen bg-navy px-6 py-16 text-white"><div className="mx-auto max-w-6xl"><p className="text-sm uppercase tracking-[.35em] text-blue-300">Case Studies</p><h1 className="mt-4 font-display text-5xl">Public MSME impact stories and practical learning.</h1><p className="mt-4 max-w-3xl text-white/65">Read admin-approved stories that summarize the problem, context, solution approach, measurable impact, and lessons learned. Demo cards are shown until Firestore case studies are published.</p><div className="mt-10 grid gap-5 md:grid-cols-3">{items.map((item) => <Card key={item.id}><p className="text-sm text-blue-200">{item.sector} · {item.problemType}</p><h2 className="mt-3 text-2xl font-semibold">{item.title}</h2><p className="mt-3 text-sm text-white/65">{item.problem}</p><p className="mt-3 text-sm text-amber-100">Impact: {item.impactMetric}</p><div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55"><span>{item.readTime}</span><span>↑ {item.upvotes}</span><span>{item.comments} comments</span></div><div className="mt-4 flex flex-wrap gap-2">{item.tags.map((tag) => <span key={tag} className="rounded-full bg-white/10 px-3 py-1 text-xs">#{tag}</span>)}</div><div className="mt-5"><Button href={`/case-studies/${item.slug}`}>Read case study</Button></div></Card>)}</div></div></main>;
+}
