@@ -31,6 +31,7 @@ import {
 export { getInitializationStatus, initializePlatform };
 import type {
   AdminApplication,
+  AdminAuditLog,
   AdminInboxComment,
   AdminInboxItem,
   AssociatedType,
@@ -165,6 +166,7 @@ export const COLLECTIONS = {
   notifications: "notifications",
   adminApplications: "admin_applications",
   adminInbox: "admin_inbox",
+  adminAuditLogs: "admin_audit_logs",
   bootstrapAdmins: "bootstrap_admins",
   userRoleRequests: "user_role_requests",
   teamMembers: "team_members",
@@ -2836,21 +2838,25 @@ export async function reviewUserRoleRequest(requestId: string, decision: "approv
 }
 
 export const getUsersForRoleManagement = cache(async () => listCollection<UserProfile>(COLLECTIONS.users, [limit(500)]));
+export const getSuperAdminUsers = getUsersForRoleManagement;
+export async function getUserByMembershipId(membershipId: string) { return findUserByMembershipId(membershipId); }
+export const getAdminAuditLogs = cache(async (targetUserId?: string) => listCollection<AdminAuditLog>(COLLECTIONS.adminAuditLogs, targetUserId ? [where("targetUserId", "==", targetUserId), limit(50)] : [limit(100)]).catch(() => []));
+export async function createAdminAuditLog(data: Omit<AdminAuditLog, "id" | "createdAt">) { return createRecord<AdminAuditLog>(COLLECTIONS.adminAuditLogs, { ...data, createdAt: serverTimestamp() } as never); }
+export async function hasAnotherActiveSuperAdmin(targetUserId: string) { const rows = await listCollection<UserProfile>(COLLECTIONS.users, [where("role", "==", "super_admin"), limit(10)]).catch(() => []); return rows.some((u) => (u.uid || u.id) !== targetUserId && u.status !== "inactive"); }
 
 export async function updateUserRoleAndStatus(targetUserId: string, patch: { role?: Role; status?: string }, actor: UserProfile) {
   if (!actor.uid) throw new Error("Admin profile missing uid.");
   if (targetUserId === actor.uid && patch.role && patch.role !== actor.role) throw new Error("You cannot change your own role.");
   const target = await getRecord<UserProfile>(COLLECTIONS.users, targetUserId);
   if (!target) throw new Error("User not found.");
-  if (actor.role !== "admin" && actor.role !== "super_admin") throw new Error("Admin access required.");
-  if (actor.role === "admin" && patch.role === "super_admin") throw new Error("Only a super-admin can assign super-admin.");
+  if (actor.role !== "super_admin") throw new Error("Super admin access required.");
   if (target.role === "super_admin" && patch.role && patch.role !== "super_admin") {
     const superAdmins = (await listCollection<UserProfile>(COLLECTIONS.users, [where("role", "==", "super_admin"), limit(2)])).filter((u) => u.status !== "inactive");
     if (superAdmins.length <= 1) throw new Error("Cannot demote the last active super-admin.");
   }
   const safePatch = { ...patch, updatedAt: serverTimestamp() } as Record<string, unknown>;
   await updateRecord(COLLECTIONS.users, targetUserId, safePatch);
-  await upsertRecord(COLLECTIONS.userRoleRequests, targetUserId, { userId: targetUserId, currentRole: patch.role || target.role || "member", status: "reviewed", reviewedBy: actor.uid, reviewedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  await createAdminAuditLog({ actionType: patch.role && patch.role !== target.role ? "role_changed" : "status_changed", targetUserId, targetMembershipId: target.membershipId, targetEmail: target.email, previousRole: target.role || "member", newRole: patch.role || target.role || "member", previousStatus: target.status || "active", newStatus: patch.status || target.status || "active", performedByUserId: actor.uid, performedByMembershipId: actor.membershipId, performedByName: actor.fullName || actor.name || actor.email || "Super admin", reason: "Super admin user management action" });
   await logAudit({ actorId: actor.uid, action: "user_role_status_updated", entityType: "users", entityId: targetUserId, summary: `Updated ${target.email || targetUserId}`, metadata: { beforeRole: target.role, afterRole: patch.role || target.role, status: patch.status || target.status } } as any).catch(() => undefined);
 }
 

@@ -17,7 +17,7 @@ service cloud.firestore {
     function selfProfileRoleSafe() { return request.resource.data.role == resource.data.role || (!resource.data.keys().hasAny(['role']) && request.resource.data.role == 'member'); }
     function selfProfileStatusSafe() { return request.resource.data.status == resource.data.status || (!resource.data.keys().hasAny(['status']) && request.resource.data.status == 'active'); }
     function selfProfileRolesSafe() { return (!request.resource.data.diff(resource.data).changedKeys().hasAny(['roles']) || !request.resource.data.keys().hasAny(['roles']) || request.resource.data.roles == resource.data.roles || (!resource.data.keys().hasAny(['roles']) && containsOnlyMemberRoles(request.resource.data.roles))) && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['primaryRole']) || !request.resource.data.keys().hasAny(['primaryRole']) || request.resource.data.primaryRole == resource.data.primaryRole || (!resource.data.keys().hasAny(['primaryRole']) && request.resource.data.primaryRole == 'member')); }
-    function adminRolePatchAllowed(uid) { return platformAdmin() && uid != request.auth.uid && (!request.resource.data.diff(resource.data).changedKeys().hasAny(['role','roles','primaryRole']) || (isSuperAdmin() && safeUserRole(request.resource.data.role) && (!request.resource.data.keys().hasAny(['roles']) || request.resource.data.roles.hasOnly(['member','admin','super_admin'])) && (!request.resource.data.keys().hasAny(['primaryRole']) || safeUserRole(request.resource.data.primaryRole)))); }
+    function adminRolePatchAllowed(uid) { return isSuperAdmin() && uid != request.auth.uid && request.resource.data.diff(resource.data).changedKeys().hasOnly(['role','roles','primaryRole','status','memberStatus','updatedAt']) && (!request.resource.data.keys().hasAny(['role']) || safeUserRole(request.resource.data.role)) && (!request.resource.data.keys().hasAny(['roles']) || request.resource.data.roles.hasOnly(['member','admin','super_admin'])) && (!request.resource.data.keys().hasAny(['primaryRole']) || safeUserRole(request.resource.data.primaryRole)); }
     // Public reads require explicit public visibility and a safe externally publishable status.
     function isPublicDoc() { return resource.data.visibility == 'public' && resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
     function incomingPublicDoc() { return request.resource.data.visibility == 'public' && request.resource.data.status in ['published', 'approved', 'completed', 'open', 'upcoming', 'closed', 'results_declared']; }
@@ -85,6 +85,7 @@ service cloud.firestore {
     match /system_stats/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /public_metrics/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /audit_logs/{id} { allow read: if platformAdmin(); allow create: if signedIn(); allow update: if isSuperAdmin() || (platformAdmin() && id == '__schema'); allow delete: if isSuperAdmin(); }
+    match /admin_audit_logs/{id} { allow read, create: if isSuperAdmin(); allow update, delete: if false; }
 
     match /notifications/{id} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || (resource.data.userId == 'admins' && platformAdmin()) || platformAdmin());
