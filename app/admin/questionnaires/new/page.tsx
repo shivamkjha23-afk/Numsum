@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { AdminQuestionnaireForm } from "@/components/admin-questionnaire-form";
+export default function NewQuestionnairePage() { return <main className="px-4 py-8 md:px-8"><div className="mx-auto max-w-5xl"><Link href="/admin/questionnaires" className="text-sm text-blue-200">← Back to questionnaires</Link><p className="mt-6 text-sm uppercase tracking-[.28em] text-blue-300">Admin forms</p><h1 className="mt-3 font-display text-4xl md:text-5xl">New Questionnaire</h1><p className="mt-3 text-white/60">Use dropdowns and repeatable rows to keep templates reusable across sectors.</p><div className="mt-6"><AdminQuestionnaireForm /></div></div></main>; }

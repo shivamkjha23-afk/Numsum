@@ -7,7 +7,7 @@ const nodes = [
   { label: "Problems", href: "/problem-statements", x: 18, y: 20 },
   { label: "SOPs", href: "/sops", x: 72, y: 22 },
   { label: "Research", href: "/research", x: 34, y: 38 },
-  { label: "Challenges", href: "/competitions", x: 58, y: 42 },
+  { label: "Challenges", href: "/challenges", x: 58, y: 42 },
   { label: "Knowledge", href: "/knowledge", x: 8, y: 55 },
   { label: "Manufacturing", href: "/problem-statements?category=Manufacturing", x: 78, y: 58 },
   { label: "Pilots", href: "/pilots", x: 28, y: 72 },

@@ -1,3 +1,2 @@
-"use client";
-import { useEffect, useState } from "react"; import { AuthGate } from "@/components/auth-gate"; import { useAuth } from "@/components/auth-provider"; import { Card } from "@/components/ui"; import { getMyCompetitionTeams } from "@/lib/repositories/firestore";
-export default function MyTeams(){const{user}=useAuth();const[teams,setTeams]=useState<any[]>([]);useEffect(()=>{if(user)getMyCompetitionTeams(user.uid).then(setTeams)},[user]);return <AuthGate><main className="min-h-screen bg-navy px-6 py-10"><h1 className="font-display text-5xl">My Teams</h1><Card className="mt-8"><pre className="text-xs text-white/70">{JSON.stringify(teams,null,2)}</pre></Card></main></AuthGate>}
+import { redirect } from "next/navigation";
+export default function DashboardCompetitionTeamsRedirect() { redirect("/dashboard/challenges"); }

@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { AdminChallengeForm } from "@/components/admin-challenge-form";
+export default function NewAdminChallengePage(){return <main className="px-4 py-8 md:px-8"><div className="mx-auto max-w-6xl"><Link href="/admin/challenges" className="text-sm text-blue-200">← Back to challenges</Link><p className="mt-6 text-sm uppercase tracking-[.28em] text-blue-300">Admin challenges</p><h1 className="mt-3 font-display text-4xl md:text-5xl">Create Challenge</h1><p className="mt-3 text-white/60">Link an MSME problem for autofill or create a standalone public challenge.</p><div className="mt-6"><AdminChallengeForm /></div></div></main>}
