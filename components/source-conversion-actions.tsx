@@ -9,7 +9,7 @@ export function ConvertProblemAction({ problem }: { problem: ProblemStatement })
   const isAdmin = useIsAdmin();
   const [message, setMessage] = useState("");
   if (!isAdmin) return null;
-  return <div className="mt-4"><button className="rounded-full bg-purple-500/20 px-4 py-2 text-purple-100" onClick={async () => { if (!user) return; await convertProblemToCompetition(problem, user.uid); setMessage("Linked competition draft created."); }}>Convert To Competition</button>{message && <p className="mt-2 text-sm text-white/60">{message}</p>}</div>;
+  return <div className="mt-4"><button className="rounded-full bg-purple-500/20 px-4 py-2 text-purple-100" onClick={async () => { if (!user) return; await convertProblemToCompetition(problem, user.uid); setMessage("Linked challenge draft created."); }}>Convert to Challenge</button>{message && <p className="mt-2 text-sm text-white/60">{message}</p>}</div>;
 }
 
 export function ConvertResearchAction({ research }: { research: ResearchPost }) {
@@ -17,5 +17,5 @@ export function ConvertResearchAction({ research }: { research: ResearchPost }) 
   const isAdmin = useIsAdmin();
   const [message, setMessage] = useState("");
   if (!isAdmin) return null;
-  return <div className="mt-4"><button className="rounded-full bg-purple-500/20 px-4 py-2 text-purple-100" onClick={async () => { if (!user) return; await convertResearchToCompetition(research, user.uid); setMessage("Research competition draft created."); }}>Create Competition From Research</button>{message && <p className="mt-2 text-sm text-white/60">{message}</p>}</div>;
+  return <div className="mt-4"><button className="rounded-full bg-purple-500/20 px-4 py-2 text-purple-100" onClick={async () => { if (!user) return; await convertResearchToCompetition(research, user.uid); setMessage("Research challenge draft created."); }}>Create Challenge from Research</button>{message && <p className="mt-2 text-sm text-white/60">{message}</p>}</div>;
 }

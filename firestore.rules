@@ -11,8 +11,7 @@ service cloud.firestore {
     function elevatedUserRole(role) { return false; }
     function newMemberRoleReview() { return false; }
     function isSuperAdmin() { return userRole() == 'super_admin'; }
-    function isBootstrapAdminEmail() { return signedIn() && request.auth.token.email == 'subhshivam22@gmail.com'; }
-    function platformAdmin() { return isAdmin() || isBootstrapAdminEmail(); }
+    function platformAdmin() { return isAdmin(); }
     function safeSelfProfileKeys() { return request.resource.data.diff(resource.data).changedKeys().hasOnly(['uid','displayName','name','fullName','email','phoneNumber','photoURL','role','roles','primaryRole','status','memberStatus','authProvider','provider','createdAt','profileComplete','profileCompletedAt','profileType','city','state','country','shortBio','professionalSummary','organizationId','organizationIds','organizationName','organizationType','industrySegment','manufacturingOrServiceFocus','productsOrServices','companySize','website','gstOrUdyam','majorChallenges','institutionName','departmentOrDiscipline','researchInterests','currentRole','portfolioOrLinkedIn','domainExpertise','yearsOfExperience','industriesWorkedWith','startupOrCompanyName','solutionArea','targetIndustries','productStage','skills','memberModuleEnabled','onboardingCompletedAt','updatedAt']); }
     function selfProfileRoleSafe() { return request.resource.data.role == resource.data.role || (!resource.data.keys().hasAny(['role']) && request.resource.data.role == 'member'); }
     function selfProfileStatusSafe() { return request.resource.data.status == resource.data.status || (!resource.data.keys().hasAny(['status']) && request.resource.data.status == 'active'); }
@@ -81,7 +80,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    match /bootstrap_admins/{email} { allow read, write: if platformAdmin() || (isBootstrapAdminEmail() && email == request.auth.token.email); }
+    match /bootstrap_admins/{email} { allow read, write: if isSuperAdmin(); }
     match /system_documents/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /settings/{id} { allow read: if true; allow write: if platformAdmin(); }
     match /role_definitions/{id} { allow read: if signedIn(); allow write: if platformAdmin(); }

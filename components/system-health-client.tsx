@@ -89,7 +89,7 @@ export function SystemHealthClient() {
           <CheckCard label="Structured notes" value={data.meetingNotes} detail="problem_meeting_notes is the source of truth." />
           <CheckCard label="Web MOM rendering" value="available" detail="Admins and members view MOMs as system pages." />
           <CheckCard label="PDF/download" value="print on demand" detail="Use browser Print / Save as PDF from the MOM page." />
-          <CheckCard label="Permanent file storage" value="not configured by design" detail="Storage not configured by design — PDFs are generated on demand." />
+          <CheckCard label="Permanent PDF files" value="not used by design" detail="MOM PDFs are generated through browser Print / Save as PDF." />
         </div>
       </section>
     </div>

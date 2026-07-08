@@ -10,7 +10,7 @@ const records: SeedRecord[] = [
   { collection: "questionnaire_templates", id: "default-msme-onboarding", data: { title: "Default MSME onboarding questionnaire", category: "msme_onboarding", status: "active", version: 1, questions: [] } },
   { collection: "contribution_score_rules", id: "default-non-equity-rules", data: { title: "Default non-equity contribution score rules", active: true, equityDisclaimer: "Contribution scores are operational recognition signals and do not represent equity, ownership, or compensation." } },
   { collection: "knowledge_assets", id: "founding-stage-platform-note", data: { title: "NumSum Labs founding-stage knowledge note", status: "published", visibility: "public", summary: "NumSum Labs is preparing its operating knowledge base and will publish validated resources as they become available." } },
-  { collection: "competitions", id: "draft-launch-sample", data: { title: "Draft launch sample competition", status: "draft", visibility: "admin", summary: "Admin-only draft used to verify competition operations. Do not publish as real activity." } },
+  { collection: "competitions", id: "draft-launch-sample", data: { title: "Draft launch sample challenge", status: "draft", visibility: "admin", summary: "Admin-only draft used to verify challenge operations. Do not publish as real activity." } },
 ];
 
 function has(flag: string) { return process.argv.includes(flag); }

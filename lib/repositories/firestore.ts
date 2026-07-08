@@ -366,38 +366,8 @@ export async function createNotification(
   } as WithFieldValue<Omit<Notification, "id">>);
 }
 
-const BOOTSTRAP_ADMIN_EMAIL = "subhshivam22@gmail.com";
-const BOOTSTRAP_ADMIN_NAME = "Roopveer Jha";
 export function normalizeEmail(email?: string | null) {
   return email?.trim().toLowerCase() || "";
-}
-export async function ensureBootstrapAdminRegistry() {
-  return upsertRecord(COLLECTIONS.bootstrapAdmins, BOOTSTRAP_ADMIN_EMAIL, {
-    email: BOOTSTRAP_ADMIN_EMAIL,
-    name: BOOTSTRAP_ADMIN_NAME,
-    role: "admin",
-    active: true,
-    updatedAt: serverTimestamp(),
-  });
-}
-export async function isBootstrapAdminEmail(email?: string | null) {
-  const normalized = normalizeEmail(email);
-  if (!normalized) return false;
-  if (normalized === BOOTSTRAP_ADMIN_EMAIL) {
-    try {
-      await ensureBootstrapAdminRegistry();
-    } catch (error) {
-      console.warn(
-        "[ADMIN] Unable to update bootstrap admin registry; continuing with configured bootstrap email",
-        error,
-      );
-    }
-  }
-  const admin = await getRecord<{ active?: boolean; role?: string }>(
-    COLLECTIONS.bootstrapAdmins,
-    normalized,
-  );
-  return Boolean(admin?.active !== false && admin?.role === "admin");
 }
 
 function authProvider(user: FirebaseUser) {
@@ -454,24 +424,13 @@ function defaultMemberProfile(user: FirebaseUser) {
 export async function ensureUserProfile(
   user: FirebaseUser,
 ): Promise<UserProfile> {
-  console.info("[AUTH] Ensuring user profile", {
-    uid: user.uid,
-    email: user.email,
-  });
   const existing = await getRecord<UserProfile>(COLLECTIONS.users, user.uid);
 
   if (!existing) {
     const profile = defaultMemberProfile(user);
-    console.info("[PROFILE] Creating first-login member profile", {
-      uid: user.uid,
-      email: profile.email,
-      roles: profile.roles,
-    });
     await upsertRecord(COLLECTIONS.users, user.uid, profile);
     // Basic member access is automatic. Auxiliary stat writes must not block login.
-    await bumpStats("memberCount").catch((error) =>
-      console.warn("[PROFILE] Unable to bump member count", error),
-    );
+    await bumpStats("memberCount").catch(() => undefined);
     return { id: user.uid, ...profile } as unknown as UserProfile;
   }
 
@@ -499,10 +458,6 @@ export async function ensureUserProfile(
 
   if (Object.keys(patch).length > 0) {
     patch.updatedAt = serverTimestamp();
-    console.info("[PROFILE] Repairing user profile bootstrap fields", {
-      uid: user.uid,
-      patchedFields: Object.keys(patch),
-    });
     await upsertRecord(COLLECTIONS.users, user.uid, patch);
   }
 
@@ -2323,10 +2278,10 @@ export async function globalSearch(term: string): Promise<SearchResult[]> {
     })),
     ...competitions.map((x) => ({
       id: x.id,
-      type: "Competition",
+      type: "Challenge",
       title: x.title,
       description: x.description,
-      href: "/competitions",
+      href: "/challenges",
       tags: [x.theme || ""],
     })),
   ].filter((x) =>
