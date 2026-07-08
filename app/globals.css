@@ -12,3 +12,7 @@
 @keyframes marquee{to{transform:translateX(-100%)}}
 
 .animate-splash-in{animation:splashIn .75s ease both}.animate-splash-out{animation:splashOut .45s ease 1.2s both}@keyframes splashIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes splashOut{to{opacity:0;visibility:hidden;transform:scale(1.02)}}
+.section-eyebrow{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.24em;color:rgba(253,230,138,.72)}
+.section-title{margin-top:.75rem;font-family:var(--font-display);font-size:clamp(2rem,4vw,3.6rem);font-weight:700;line-height:1.04;letter-spacing:-.045em;color:#fff8ea}
+.premium-card{background:linear-gradient(145deg,rgba(255,248,234,.09),rgba(255,255,255,.025));border-color:rgba(255,248,234,.13);box-shadow:0 24px 80px rgba(0,0,0,.22)}
+@media (prefers-reduced-motion: reduce){*,::before,::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}.marquee-track{animation:none;padding-left:0}}
