@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EmptyState, LoadingState } from "@/components/data-states";
+import { HomeSplash } from "@/components/home-splash";
 import { NetworkHero } from "@/components/network-hero";
 import { ProtectedLink } from "@/components/protected-link";
 import { Button, Card } from "@/components/ui";
@@ -76,22 +77,31 @@ async function Highlights() {
 }
 export default function Home() {
   return <main className="overflow-hidden bg-[#060504] text-[#fff8ea]">
-    <section className="relative mx-auto flex min-h-[78vh] max-w-7xl flex-col items-center gap-12 px-6 py-16 text-center md:py-24">
+    <HomeSplash />
+    <section className="relative mx-auto grid min-h-[82vh] max-w-7xl items-center gap-10 px-6 py-14 md:grid-cols-[1.02fr_.98fr] md:py-20">
       <div className="hero-orb hero-orb-a" />
       <div className="hero-orb hero-orb-b" />
-      <div className="relative z-10 max-w-6xl">
-        <p className="mb-5 text-sm uppercase tracking-[.55em] text-amber-200/80">(MSME-first industrial innovation)</p>
-        <h1 className="font-display text-4xl font-bold uppercase leading-[.92] tracking-[-.05em] md:text-7xl">NumSum Labs helps MSMEs turn real industrial problems into solved challenges.</h1>
-        <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-white/72">Submit problems, connect with experts, run innovation challenges, track outcomes, and build practical industrial knowledge.</p>
-        <p className="mt-5 text-sm font-semibold uppercase tracking-[.35em] text-amber-100/80">Problem-first · MSME-first · Built for industrial upgradation</p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <ProtectedLink href="/submit-problem" className="rounded-full bg-amber-100 px-5 py-3 text-sm font-semibold text-black transition hover:bg-white">Submit Your MSME Problem</ProtectedLink>
+      <div className="relative z-10">
+        <p className="mb-5 inline-flex rounded-full border border-amber-200/20 bg-amber-200/10 px-4 py-2 text-xs font-semibold uppercase tracking-[.28em] text-amber-100/85">MSME-first industrial innovation</p>
+        <h1 className="font-display text-5xl font-bold leading-[.92] tracking-[-.06em] md:text-7xl">Solve factory problems with a trusted innovation network.</h1>
+        <p className="mt-7 max-w-2xl text-lg leading-8 text-white/70">NumSum Labs turns MSME pain points into reviewed problem statements, solver challenges, pilots, SOPs, and measurable impact.</p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <ProtectedLink href="/submit-problem" className="rounded-full bg-amber-100 px-5 py-3 text-sm font-semibold text-black shadow-[0_18px_60px_rgba(245,158,11,.22)] transition hover:bg-white">Submit MSME Problem</ProtectedLink>
           <Button href="/challenges" variant="secondary">Explore Challenges</Button>
-          <Button href="/join" variant="secondary">Join as Member</Button>
-          <Button href="/case-studies" variant="secondary">View Case Studies</Button>
+          <Button href="/join" variant="secondary">Join Network</Button>
+        </div>
+        <div className="mt-9 grid max-w-2xl gap-3 sm:grid-cols-3">
+          {["Review-safe intake", "Expert + student solvers", "Pilot-to-impact tracking"].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white/70">{item}</div>)}
         </div>
       </div>
-      <div className="relative z-10 w-full pt-2"><NetworkHero /></div>
+      <div className="relative z-10">
+        <div className="rounded-[2.25rem] border border-white/10 bg-white/[0.04] p-3 shadow-[0_32px_120px_rgba(0,0,0,.42)]">
+          <div className="rounded-[1.75rem] bg-[#080b10] p-5">
+            <div className="mb-5 flex items-center justify-between text-xs uppercase tracking-[.24em] text-blue-100/55"><span>Live workflow</span><span>Problem → Pilot</span></div>
+            <NetworkHero />
+          </div>
+        </div>
+      </div>
     </section>
     <section className="mx-auto max-w-7xl px-6 py-12">
       <p className="text-sm uppercase tracking-[.4em] text-amber-200/70">(Find your path)</p>
