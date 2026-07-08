@@ -10,3 +10,5 @@
 .marquee-track{display:flex;width:max-content;gap:3rem;animation:marquee 24s linear infinite;padding-left:100%}
 .marquee-track span{white-space:nowrap}
 @keyframes marquee{to{transform:translateX(-100%)}}
+
+.animate-splash-in{animation:splashIn .75s ease both}.animate-splash-out{animation:splashOut .45s ease 1.2s both}@keyframes splashIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes splashOut{to{opacity:0;visibility:hidden;transform:scale(1.02)}}
