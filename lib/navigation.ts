@@ -18,7 +18,7 @@ export const navGroups: NavGroup[] = [
   { label: "Explore", links: phaseOnePublicLinks },
   { label: "Resources", links: secondaryPublicLinks },
   { label: "Admin", adminOnly: true, sections: [
-    { label: "Phase 2", links: [["Admin Dashboard", "/admin"], ["System Health", "/admin/system-health"], ["Users", "/admin/users"], ["MSME Owners", "/admin/msme-owners"], ["Problems", "/admin/problems"], ["Questionnaires", "/admin/questionnaires"], ["Challenges", "/admin/competitions"], ["Community Moderation", "/admin/community"]] },
+    { label: "Phase 2", links: [["Admin Dashboard", "/admin"], ["System Health", "/admin/system-health"], ["Users", "/admin/users"], ["MSME Owners", "/admin/msme-owners"], ["Problems", "/admin/problems"], ["Questionnaires", "/admin/questionnaires"], ["Challenges", "/admin/challenges"], ["Community Moderation", "/admin/community"]] },
   ] },
 ];
 export function getVisibleNavLinks(isAdmin: boolean) {

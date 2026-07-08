@@ -1,15 +1,13 @@
 "use client";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthModal } from "@/components/auth-modal";
 import { auth } from "@/lib/firebase";
 import { ensureUserProfile, isProfileComplete } from "@/lib/repositories/firestore";
 import type { UserProfile } from "@/lib/types";
 
 type PendingAuth = { message?: string; returnTo?: string; onSuccess?: () => void | Promise<void> } | null;
-type AuthContextValue = { user: User | null; profile: UserProfile | null; role: UserProfile["role"] | null; loading: boolean; authReady: boolean; profileComplete: boolean; bootstrapAdminDetected: boolean; requestAuth: (options?: NonNullable<PendingAuth>) => void; closeAuth: () => void; refreshProfile: () => Promise<UserProfile | null>; };
-const BOOTSTRAP_ADMIN_EMAIL = "subhshivam22@gmail.com";
+type AuthContextValue = { user: User | null; profile: UserProfile | null; role: UserProfile["role"] | null; loading: boolean; authReady: boolean; profileComplete: boolean; requestAuth: (options?: NonNullable<PendingAuth>) => void; closeAuth: () => void; refreshProfile: () => Promise<UserProfile | null>; };
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -18,16 +16,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [pendingAuth, setPendingAuth] = useState<PendingAuth>(null);
   const [profileError, setProfileError] = useState("");
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => onAuthStateChanged(auth, async (next) => {
     setLoading(true);
     setUser(next);
-    if (!next) { console.info("[AUTH] No authenticated Firebase user"); setProfile(null); setProfileError(""); setLoading(false); return; }
-    console.info("[AUTH] Firebase user detected", { uid: next.uid, email: next.email });
-    try { setProfileError(""); const loadedProfile = await ensureUserProfile(next); console.info("[AUTH] Profile loaded", { uid: next.uid, email: loadedProfile.email, role: loadedProfile.role }); setProfile(loadedProfile); } catch (error) { console.error("[AUTH] Profile initialization failed", error); setProfileError("Could not create member profile. Please retry or contact admin."); setProfile(null); }
+    if (!next) { setProfile(null); setProfileError(""); setLoading(false); return; }
+    try { setProfileError(""); const loadedProfile = await ensureUserProfile(next); setProfile(loadedProfile); } catch { setProfileError("Could not create member profile. Please retry or contact admin."); setProfile(null); }
     setLoading(false);
   }), []);
 
@@ -41,16 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loadedProfile;
   }, []);
   const handleSuccess = useCallback(async () => { const resume = pendingAuth?.onSuccess; setPendingAuth(null); await resume?.(); }, [pendingAuth]);
-  const bootstrapAdminDetected = (user?.email || "").trim().toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
   const profileComplete = isProfileComplete(profile);
-  useEffect(() => {
-    if (loading || !user || !profile || profileComplete) return;
-    if (profile.role === "admin" || profile.role === "super_admin") return;
-    if (pathname?.startsWith("/profile/complete")) return;
-    const current = `${pathname || "/"}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
-    router.replace(`/profile/complete?returnTo=${encodeURIComponent(current)}`);
-  }, [loading, user, profile, profileComplete, pathname, searchParams, router]);
-  const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile }), [user, profile, loading, profileComplete, bootstrapAdminDetected, requestAuth, closeAuth, refreshProfile]);
+  // Profile completion is enforced only by protected member action routes via AuthGate.
+  // Incomplete members can still browse public pages and learn the platform before acting.
+  const value = useMemo(() => ({ user, profile, role: profile?.role || null, loading, authReady: !loading && (!user || Boolean(profile?.role)), profileComplete, requestAuth, closeAuth, refreshProfile }), [user, profile, loading, profileComplete, requestAuth, closeAuth, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{profileError && <div className="fixed left-4 right-4 top-4 z-[120] rounded-2xl border border-red-300/30 bg-red-950/95 p-4 text-sm text-red-50 shadow-2xl">{profileError}</div>}{children}<AuthModal open={Boolean(pendingAuth)} onClose={closeAuth} returnTo={pendingAuth?.returnTo} message={pendingAuth?.message} onSuccess={handleSuccess} /></AuthContext.Provider>;
 }

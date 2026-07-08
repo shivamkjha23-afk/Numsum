@@ -22,7 +22,7 @@ function DetailContent({ id }: { id: string }) {
       .catch((err) => setError(err instanceof Error ? err.message : "Unable to load competition details."));
     return () => { mounted = false; };
   }, [id]);
-  if (error) return <ErrorState message={error} retryHref="/admin/competitions" />;
+  if (error) return <ErrorState message={error} retryHref="/admin/challenges" />;
   if (missing) return <EmptyState title="Competition not found" message="The requested competition could not be loaded." />;
   if (!data) return <LoadingState label="Loading competition" />;
   const { competition, participants, teams, submissions, evaluations, result } = data;
