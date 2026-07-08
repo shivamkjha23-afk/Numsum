@@ -2076,7 +2076,7 @@ export async function updatePilotTrack(id: string, patch: Partial<PilotTrack>, a
 export const getPilotTrackById = cache(async (id: string) => getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id));
 export const getPilotTracksForProblem = cache(async (problemStatementId: string) => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("problemStatementId", "==", problemStatementId), limit(50)]));
 export const getAdminPilotTracks = cache(async () => listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [orderBy("createdAt", "desc"), limit(200)]));
-export const getPublicPilotTracks = cache(async () => (await listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("visibility", "==", "public"), limit(100)])).filter((p) => ["completed", "scaled"].includes(p.status || "") || !!p.publishedAt).map(publicSafePilot));
+export const getPublicPilotTracks = cache(async () => (await listCollection<PilotTrack>(COLLECTIONS.pilotTracks, [where("visibility", "==", "public"), limit(100)])).filter((p) => ["approved", "planned", "active", "completed", "scaled"].includes(p.status || "") || !!p.publishedAt).map(publicSafePilot));
 export const getPublicPilotsSafe = getPublicPilotTracks;
 export async function updatePilotStatus(id: string, status: PilotTrack["status"], actorId = "") {
   const existing = await getRecord<PilotTrack>(COLLECTIONS.pilotTracks, id);
